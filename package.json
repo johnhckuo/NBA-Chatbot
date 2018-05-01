@@ -1,0 +1,25 @@
+{
+  "name": "nba-chatbot",
+  "version": "1.0.0",
+  "description": "A line chatbot built to report NBA live stats",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnhckuo/NBA-Chatbot.git"
+  },
+  "keywords": [
+    "line"
+  ],
+  "author": "johnhckuo",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/johnhckuo/NBA-Chatbot/issues"
+  },
+  "homepage": "https://github.com/johnhckuo/NBA-Chatbot#readme",
+  "devDependencies": {
+    "@line/bot-sdk": "^6.0.1"
+  }
+}
