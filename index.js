@@ -33,6 +33,15 @@ app.post('/callback', line.middleware(config), (req, res) => {
     });
 });
 
+// simple reply function
+const replyText = (token, texts) => {
+  texts = Array.isArray(texts) ? texts : [texts];
+  return client.replyMessage(
+    token,
+    texts.map((text) => ({ type: 'text', text }))
+  );
+};
+
 // event handler
 function handleEvent(event) {
   switch (event.type) {
