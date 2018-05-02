@@ -1,6 +1,8 @@
 'use strict';
+require('dotenv').config()
 const line = require('@line/bot-sdk');
 const express = require('express');
+const axios = require('axios');
 
 // create LINE SDK config from env variables
 const config = {
@@ -20,7 +22,9 @@ const app = express();
 app.post('/callback', line.middleware(config), (req, res) => {
   Promise
     .all(req.body.events.map(handleEvent))
-    .then((result) => res.json(result))
+    .then((result) => {
+      replyMessage(result);
+    })
     .catch((err) => {
       console.error(err);
       res.status(500).end();
@@ -46,3 +50,37 @@ const port = process.env.PORT || 8080;
 app.listen(port, () => {
   console.log(`listening on ${port}`);
 });
+
+// curl -v -X POST  \
+// -H 'Content-Type:application/json' \
+// -H 'Authorization: Bearer {channel access token}' \
+// -d ''
+// reply messages
+
+
+function replyMessage(replyToken){
+  axios({
+    method: 'post',
+    url: 'https://api.line.me/v2/bot/message/reply',
+    headers: {'content-type': "application/json", "Authorization": `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`},
+    data: {
+        "replyToken":replyToken,
+        "messages":[
+            {
+                "type":"text",
+                "text":"Hello, user"
+            },
+            {
+                "type":"text",
+                "text":"May I help you?"
+            }
+        ]
+    }
+    })
+    .then(function (response) {
+      console.log(response);
+    })
+    .catch(function (error) {
+      console.log(error);
+  });
+}
