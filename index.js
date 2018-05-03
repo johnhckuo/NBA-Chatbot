@@ -17,14 +17,6 @@ const client = new line.Client(config);
 // about Express itself: https://expressjs.com/
 const app = express();
 
-app.get('/', function(req, res) {
-  res.send('hello world');
-});
-
-app.get('/callback', function(req, res) {
-  res.send('hello callback');
-});
-
 // register a webhook handler with middleware
 // about the middleware, please refer to doc
 app.post('/callback', line.middleware(config), (req, res) => {
@@ -41,17 +33,18 @@ app.post('/callback', line.middleware(config), (req, res) => {
     });
 });
 
-// listen on port
-const port = process.env.PORT || 8080;
-app.listen(port, () => {
-  console.log(`listening on ${port}`);
-});
-
-
-
+// simple reply function
+const replyText = (token, texts) => {
+  texts = Array.isArray(texts) ? texts : [texts];
+  return client.replyMessage(
+    token,
+    texts.map((text) => ({ type: 'text', text }))
+  );
+};
 
 // event handler
 function handleEvent(event) {
+
   switch (event.type) {
     case 'message':
       const message = event.message;
@@ -66,6 +59,16 @@ function handleEvent(event) {
           throw new Error(`Unknown message: ${JSON.stringify(message)}`);
       }
 
+    case "postback":
+      const data = event.postback.data;
+      switch (data) {
+        case 'score':
+          return fetchScore(data, event.replyToken);
+        case 'live':
+          return fetchScore(data, event.replyToken);
+        default:
+          throw new Error(`Unknown data: ${JSON.stringify(data)}`);
+      }
     case 'follow':
       return replyText(event.replyToken, 'Got followed event');
 
@@ -83,14 +86,20 @@ function handleEvent(event) {
   }
 }
 
-// simple reply function
-const replyText = (token, texts) => {
-  texts = Array.isArray(texts) ? texts : [texts];
-  return client.replyMessage(
-    token,
-    texts.map((text) => ({ type: 'text', text }))
-  );
-};
+function fetchScore(data, replyToken){
+	return axios.get('http://stats.nba.com/stats/scoreboard/?GameDate=02/14/2015', {
+		params: {
+			LeagueID: "00",
+			DayOffset: "0"
+		}
+	})
+	.then(function (response) {
+		return replyText(replyToken, response.data.resultSets[4].rowSet[0])
+	})
+	.catch(function (error) {
+		console.log(error);
+	});
+}
 
 function handleText(message, replyToken, source) {
 
@@ -110,19 +119,75 @@ function handleText(message, replyToken, source) {
       };
     case 'confirm':
       return client.replyMessage(
-        replyToken,
-        {
-          type: 'template',
-          altText: 'Confirm alt text',
-          template: {
-            type: 'confirm',
-            text: 'Do it?',
-            actions: [
-              { label: 'Yes', type: 'message', text: 'Yes!' },
-              { label: 'No', type: 'message', text: 'No!' },
-            ],
-          },
-        }
+        replyToken, 
+		{
+		  "type": "template",
+		  "altText": "Function Menu",
+		  "template": {
+		      "type": "carousel",
+		      "columns": [
+		          {
+		            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+		            "imageBackgroundColor": "#FFFFFF",
+		            "title": "Function Menu",
+		            "text": "description",
+		            "defaultAction": {
+		                "type": "uri",
+		                "label": "View detail",
+		                "uri": "http://example.com/page/123"
+		            },
+		            "actions": [
+		                {
+		                    "type": "postback",
+		                    "label": "Score",
+		                    "data": "score"
+		                },
+		                {
+		                    "type": "postback",
+		                    "label": "Live Report",
+		                    "data": "live"
+		                },
+		                {
+		                    "type": "uri",
+		                    "label": "View detail",
+		                    "uri": "http://example.com/page/111"
+		                }
+		            ]
+		          },
+		          {
+		            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+		            "imageBackgroundColor": "#FFFFFF",
+		            "title": "Function Menu",
+		            "text": "description",
+		            "defaultAction": {
+		                "type": "uri",
+		                "label": "View detail",
+		                "uri": "http://example.com/page/123"
+		            },
+		            "actions": [
+		                {
+		                    "type": "postback",
+		                    "label": "Score",
+		                    "data": "score"
+		                },
+		                {
+		                    "type": "postback",
+		                    "label": "Live Report",
+		                    "data": "live"
+		                },
+		                {
+		                    "type": "uri",
+		                    "label": "View detail",
+		                    "uri": "http://example.com/page/111"
+		                }
+		            ]
+		          }
+		      ],
+		      "imageAspectRatio": "rectangle",
+		      "imageSize": "cover"
+		  }
+		}
+        
       );
     case 'datetime':
       return client.replyMessage(
@@ -181,3 +246,10 @@ function handleLocation(message, replyToken) {
     }
   );
 }
+
+
+// listen on port
+const port = process.env.PORT || 8080;
+app.listen(port, () => {
+  console.log(`listening on ${port}`);
+});
