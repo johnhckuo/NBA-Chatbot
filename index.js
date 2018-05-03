@@ -36,9 +36,11 @@ app.post('/callback', line.middleware(config), (req, res) => {
 // simple reply function
 const replyText = (token, texts) => {
   texts = Array.isArray(texts) ? texts : [texts];
+  console.log(texts)
+  texts = texts.join(",")
   return client.replyMessage(
     token,
-    texts.map((text) => ({ type: 'text', text }))
+    { type: 'text', text: texts }
   );
 };
 
@@ -87,7 +89,9 @@ function handleEvent(event) {
 }
 
 function fetchScore(data, replyToken){
-	return axios.get('http://stats.nba.com/stats/scoreboard/?GameDate=02/14/2015', {
+  var datetime = new Date();
+  let today = `${datetime.getDate()}/${datetime.getMonth()+1}/${datetime.getFullYear()}`;
+  return axios.get(`http://stats.nba.com/stats/scoreboard/?GameDate=${today}`, {
 		params: {
 			LeagueID: "00",
 			DayOffset: "0"
@@ -119,7 +123,7 @@ function handleText(message, replyToken, source) {
       };
     case 'confirm':
       return client.replyMessage(
-        replyToken, 
+        replyToken,
 		{
 		  "type": "template",
 		  "altText": "Function Menu",
@@ -187,7 +191,7 @@ function handleText(message, replyToken, source) {
 		      "imageSize": "cover"
 		  }
 		}
-        
+
       );
     case 'datetime':
       return client.replyMessage(
