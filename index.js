@@ -1,4 +1,7 @@
 'use strict';
+const {
+  teams
+} = require('./data/teams');
 require('dotenv').config()
 const line = require('@line/bot-sdk');
 const express = require('express');
@@ -38,50 +41,88 @@ const replyText = (token, texts) => {
   texts = Array.isArray(texts) ? texts : [texts];
   return client.replyMessage(
     token,
-    texts.map((text) => ({ type: 'text', text }))
+    texts.map((text) => ({
+      type: 'text',
+      text
+    }))
   );
 };
 
 
 // simple reply function
-const replyGame = (token, games) => {
+const replyGameByDate = (games, token) => {
   games = Array.isArray(games) ? games : [games];
   return client.replyMessage(
-    token,
-	{
-		"type": "template",
-		"altText": "Function Menu",
-		"template": {
-		  "type": "carousel",
-		  "columns": games.map((game)=>{
-		  	var startDate = new Date(game.startTimeUTC);
-			startDate = startDate.toString();
-			var description = typeof game.endTimeUTC === "undefined" ? `Game start at ${startDate}` : `Game Ended. Final score: ${game.vTeam.score} : ${game.hTeam.score}`;
-		  	return {
-		        //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-		        "imageBackgroundColor": "#FFFFFF",
-		        "title": game.vTeam.triCode + " vs. " + game.hTeam.triCode,
-		        "text": description,
-		        "actions": [
-		            {
-		                "type": "postback",
-		                "label": "Score",
-		                "data": "score"
-		            },
-		            {
-		                "type": "uri",
-		                "label": "View detail",
-		                "uri": "http://example.com/page/111"
-		            }
-		        ]
-		    };
-		  }),
-		  "imageAspectRatio": "rectangle",
-		  "imageSize": "cover"
-		}
-	}
+    token, {
+      "type": "template",
+      "altText": "Function Menu",
+      "template": {
+        "type": "carousel",
+        "columns": games.map((game) => {
+          var startDate = new Date(game.startTimeUTC);
+
+          let year = startDate.getFullYear();
+          let month = startDate.getMonth() < 10 ? "0" + (startDate.getMonth()+1).toString() : startDate.getMonth();
+          let date = startDate.getDate() < 10 ? "0" + startDate.getDate().toString() : startDate.getDate();
+
+          var isStarted = typeof game.endTimeUTC === "undefined" ? false : true;
+          var description = isStarted ?  `Game Ended. Final score: ${game.vTeam.score} : ${game.hTeam.score}` : `Game starts at ${startDate.toString()}`;
+          description = description.split("GMT")[0] + "\n"+ game.playoffs.seriesSummaryText;
+
+          var actions = isStarted ?
+            [
+              {
+                "type": "postback",
+                "label": `${teams.league.standard[game.hTeam.teamId].nickname} Stats`,
+                "data": `type=playersStats&teamId=${game.hTeam.teamId}&gameId=${game.gameId}&date=${year+month+date}`
+              },
+              {
+                "type": "postback",
+                "label": `${teams.league.standard[game.vTeam.teamId].nickname} Stats`,
+                "data": `type=playersStats&teamId=${game.hTeam.teamId}&gameId=${game.gameId}&date=${year+month+date}`
+              }
+            ]
+            :
+            [{
+                "type": "postback",
+                "label": "Subscribe",
+                "data": game.gameId
+            }];
+          return {
+            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+            "imageBackgroundColor": "#FFFFFF",
+            "title": teams.league.standard[game.vTeam.teamId].nickname + " vs. " + teams.league.standard[game.hTeam.teamId].nickname,
+            "text": description,
+            "actions": actions
+          };
+        }),
+        "imageAspectRatio": "rectangle",
+        "imageSize": "cover"
+      }
+    }
   );
 };
+
+// simple reply function
+const fetchPlayersStatsByGameId = (teamId, gameId, date, replyToken) => {
+  return axios.get(`http://data.nba.net/prod/v1/${date}/${gameId}_Book.pdf`, {
+      params: {}
+    })
+    .then(function(response) {
+      return replyText(replyToken, response.data.games)
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
+};
+
+function toObject(data){
+  var response = [];
+  data.split("&").map((subset)=>{
+    response[subset.split("=")[0]] = subset.split("=")[1];
+  });
+  return response;
+}
 
 // event handler
 function handleEvent(event) {
@@ -101,10 +142,12 @@ function handleEvent(event) {
       }
 
     case "postback":
-      const data = event.postback.data;
-      switch (data) {
+      const data = toObject(event.postback.data);
+      switch (data.type) {
         case 'DATE':
           return fetchGameByDate(event.postback.params.date, event.replyToken);
+        case 'playersStats':
+          return fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken);
         default:
           throw new Error(`Unknown data: ${JSON.stringify(data)}`);
       }
@@ -125,18 +168,29 @@ function handleEvent(event) {
   }
 }
 
-function fetchGameByDate(date, replyToken){
+// function fetchPlayerByGameId(id, replyToken) {
+//   return axios.get(`http://data.nba.net/prod/v1/2017/teams/{{teamUrlCode}}/leaders.json`, {
+//       params: {}
+//     })
+//     .then(function(response) {
+//       return replyGameByDate(response.data.games, replyToken)
+//     })
+//     .catch(function(error) {
+//       console.log(error);
+//     });
+// }
+
+function fetchGameByDate(date, replyToken) {
   date = date.split("-").join("");
   return axios.get(`http://data.nba.net/prod/v1/${date}/scoreboard.json`, {
-		params: {
-		}
-	})
-	.then(function (response) {
-		return replyGame(replyToken, response.data.games)
-	})
-	.catch(function (error) {
-		console.log(error);
-	});
+      params: {}
+    })
+    .then(function(response) {
+      return replyGameByDate(response.data.games, replyToken)
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
 }
 
 function handleText(message, replyToken, source) {
@@ -146,8 +200,7 @@ function handleText(message, replyToken, source) {
       if (source.userId) {
         return client.getProfile(source.userId)
           .then((profile) => replyText(
-            replyToken,
-            [
+            replyToken, [
               `Display name: ${profile.displayName}`,
               `Status message: ${profile.statusMessage}`,
             ]
@@ -157,32 +210,47 @@ function handleText(message, replyToken, source) {
       };
     case 'confirm':
       return client.replyMessage(
-        replyToken,
-        {
+        replyToken, {
           type: 'template',
           altText: 'Datetime pickers alt text',
           template: {
             type: 'buttons',
             text: 'Welcome to NBA Chatbot',
-            actions: [
-		        { type: 'datetimepicker', label: 'Game by date', data: 'DATE', mode: 'date' },
-            ],
+            actions: [{
+              type: 'datetimepicker',
+              label: 'Game by date',
+              data: 'type=DATE',
+              mode: 'date'
+            }, ],
           },
         }
       );
     case 'datetime':
       return client.replyMessage(
-        replyToken,
-        {
+        replyToken, {
           type: 'template',
           altText: 'Datetime pickers alt text',
           template: {
             type: 'buttons',
             text: 'Select date / time !',
-            actions: [
-              { type: 'datetimepicker', label: 'date', data: 'DATE', mode: 'date' },
-              { type: 'datetimepicker', label: 'time', data: 'TIME', mode: 'time' },
-              { type: 'datetimepicker', label: 'datetime', data: 'DATETIME', mode: 'datetime' },
+            actions: [{
+                type: 'datetimepicker',
+                label: 'date',
+                data: 'DATE',
+                mode: 'date'
+              },
+              {
+                type: 'datetimepicker',
+                label: 'time',
+                data: 'TIME',
+                mode: 'time'
+              },
+              {
+                type: 'datetimepicker',
+                label: 'datetime',
+                data: 'DATETIME',
+                mode: 'datetime'
+              },
             ],
           },
         }
@@ -206,8 +274,7 @@ function handleText(message, replyToken, source) {
 
 function handleSticker(message, replyToken) {
   return client.replyMessage(
-    replyToken,
-    {
+    replyToken, {
       type: 'sticker',
       packageId: message.packageId,
       stickerId: message.stickerId,
@@ -217,8 +284,7 @@ function handleSticker(message, replyToken) {
 
 function handleLocation(message, replyToken) {
   return client.replyMessage(
-    replyToken,
-    {
+    replyToken, {
       type: 'location',
       title: message.title,
       address: message.address,
