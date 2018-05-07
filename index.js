@@ -33,14 +33,53 @@ app.post('/callback', line.middleware(config), (req, res) => {
     });
 });
 
-// simple reply function
+
 const replyText = (token, texts) => {
   texts = Array.isArray(texts) ? texts : [texts];
-  console.log(texts)
-  texts = texts.join(",")
   return client.replyMessage(
     token,
-    { type: 'text', text: texts }
+    texts.map((text) => ({ type: 'text', text }))
+  );
+};
+
+
+// simple reply function
+const replyGame = (token, games) => {
+  games = Array.isArray(games) ? games : [games];
+  return client.replyMessage(
+    token,
+	{
+		"type": "template",
+		"altText": "Function Menu",
+		"template": {
+		  "type": "carousel",
+		  "columns": games.map((game)=>{
+		  	var startDate = new Date(game.startTimeUTC);
+			startDate = startDate.toString();
+			var description = typeof game.endTimeUTC === "undefined" ? `Game start at ${startDate}` : `Game Ended. Final score: ${game.vTeam.score} : ${game.hTeam.score}`;
+		  	return {
+		        //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+		        "imageBackgroundColor": "#FFFFFF",
+		        "title": game.vTeam.triCode + " vs. " + game.hTeam.triCode,
+		        "text": description,
+		        "actions": [
+		            {
+		                "type": "postback",
+		                "label": "Score",
+		                "data": "score"
+		            },
+		            {
+		                "type": "uri",
+		                "label": "View detail",
+		                "uri": "http://example.com/page/111"
+		            }
+		        ]
+		    };
+		  }),
+		  "imageAspectRatio": "rectangle",
+		  "imageSize": "cover"
+		}
+	}
   );
 };
 
@@ -64,10 +103,8 @@ function handleEvent(event) {
     case "postback":
       const data = event.postback.data;
       switch (data) {
-        case 'score':
-          return fetchScore(data, event.replyToken);
-        case 'live':
-          return fetchScore(data, event.replyToken);
+        case 'DATE':
+          return fetchGameByDate(event.postback.params.date, event.replyToken);
         default:
           throw new Error(`Unknown data: ${JSON.stringify(data)}`);
       }
@@ -88,17 +125,14 @@ function handleEvent(event) {
   }
 }
 
-function fetchScore(data, replyToken){
-  var datetime = new Date();
-  let today = `${datetime.getDate()}/${datetime.getMonth()+1}/${datetime.getFullYear()}`;
-  return axios.get(`http://stats.nba.com/stats/scoreboard/?GameDate=${today}`, {
+function fetchGameByDate(date, replyToken){
+  date = date.split("-").join("");
+  return axios.get(`http://data.nba.net/prod/v1/${date}/scoreboard.json`, {
 		params: {
-			LeagueID: "00",
-			DayOffset: "0"
 		}
 	})
 	.then(function (response) {
-		return replyText(replyToken, response.data.resultSets[4].rowSet[0])
+		return replyGame(replyToken, response.data.games)
 	})
 	.catch(function (error) {
 		console.log(error);
@@ -124,74 +158,17 @@ function handleText(message, replyToken, source) {
     case 'confirm':
       return client.replyMessage(
         replyToken,
-		{
-		  "type": "template",
-		  "altText": "Function Menu",
-		  "template": {
-		      "type": "carousel",
-		      "columns": [
-		          {
-		            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-		            "imageBackgroundColor": "#FFFFFF",
-		            "title": "Function Menu",
-		            "text": "description",
-		            "defaultAction": {
-		                "type": "uri",
-		                "label": "View detail",
-		                "uri": "http://example.com/page/123"
-		            },
-		            "actions": [
-		                {
-		                    "type": "postback",
-		                    "label": "Score",
-		                    "data": "score"
-		                },
-		                {
-		                    "type": "postback",
-		                    "label": "Live Report",
-		                    "data": "live"
-		                },
-		                {
-		                    "type": "uri",
-		                    "label": "View detail",
-		                    "uri": "http://example.com/page/111"
-		                }
-		            ]
-		          },
-		          {
-		            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-		            "imageBackgroundColor": "#FFFFFF",
-		            "title": "Function Menu",
-		            "text": "description",
-		            "defaultAction": {
-		                "type": "uri",
-		                "label": "View detail",
-		                "uri": "http://example.com/page/123"
-		            },
-		            "actions": [
-		                {
-		                    "type": "postback",
-		                    "label": "Score",
-		                    "data": "score"
-		                },
-		                {
-		                    "type": "postback",
-		                    "label": "Live Report",
-		                    "data": "live"
-		                },
-		                {
-		                    "type": "uri",
-		                    "label": "View detail",
-		                    "uri": "http://example.com/page/111"
-		                }
-		            ]
-		          }
-		      ],
-		      "imageAspectRatio": "rectangle",
-		      "imageSize": "cover"
-		  }
-		}
-
+        {
+          type: 'template',
+          altText: 'Datetime pickers alt text',
+          template: {
+            type: 'buttons',
+            text: 'Welcome to NBA Chatbot',
+            actions: [
+		        { type: 'datetimepicker', label: 'Game by date', data: 'DATE', mode: 'date' },
+            ],
+          },
+        }
       );
     case 'datetime':
       return client.replyMessage(
