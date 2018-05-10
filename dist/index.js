@@ -22,8 +22,6 @@ var client = new line.Client(config);
 var app = express();
 var fetch = new Fetch(client);
 
-// register a webhook handler with middleware
-// about the middleware, please refer to doc
 app.post('/callback', line.middleware(config), function (req, res) {
   if (!Array.isArray(req.body.events)) {
     return res.status(500).end();
@@ -55,7 +53,7 @@ function handleEvent(event) {
 
     case "postback":
       var data = Utils.toObject(event.postback.data);
-      console.log(data.type);
+      console.log(data.date);
       switch (data.type) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);

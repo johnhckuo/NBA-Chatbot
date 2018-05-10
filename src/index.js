@@ -16,8 +16,6 @@ const client = new line.Client(config);
 const app = express();
 const fetch = new Fetch(client);
 
-// register a webhook handler with middleware
-// about the middleware, please refer to doc
 app.post('/callback', line.middleware(config), (req, res) => {
   if (!Array.isArray(req.body.events)) {
     return res.status(500).end();
