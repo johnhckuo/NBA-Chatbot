@@ -49,7 +49,7 @@ function handleEvent(event) {
 
     case "postback":
       const data = Utils.toObject(event.postback.data);
-      console.log(data.type)
+      console.log(data.date)
       switch (data.type) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
