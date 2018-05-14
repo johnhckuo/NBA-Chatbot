@@ -8,6 +8,9 @@ var _require = require("./fetch"),
 var _require2 = require("./utils"),
     Utils = _require2.Utils;
 
+var _require3 = require("./command"),
+    Command = _require3.Command;
+
 var line = require('@line/bot-sdk');
 var express = require('express');
 var axios = require('axios');
@@ -43,20 +46,21 @@ function handleEvent(event) {
       switch (message.type) {
         case 'text':
           return handleText(message, event.replyToken, event.source);
-        case 'sticker':
-          return handleSticker(message, event.replyToken);
-        case 'location':
-          return handleLocation(message, event.replyToken);
         default:
           throw new Error('Unknown message: ' + JSON.stringify(message));
       }
 
     case "postback":
       var data = Utils.toObject(event.postback.data);
-      console.log(data.date);
       switch (data.type) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
+        case 'TEAM':
+          return fetch.fetchTeamList(event.replyToken);
+        case 'TEAM_LEADERS':
+          return fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
+        case 'TEAM_SCHEDULE':
+          return fetch.fetchTeamInfo("schedule", data.urlCode, event.replyToken);
         case 'playersStats':
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken);
         case 'gamble':
@@ -82,56 +86,45 @@ function handleEvent(event) {
 }
 
 function handleText(message, replyToken, source) {
-  switch (message.text) {
-    case 'profile':
-      if (source.userId) {
-        return client.getProfile(source.userId).then(function (profile) {
-          return Utils.replyText(client, replyToken, ['Display name: ' + profile.displayName, 'Status message: ' + profile.statusMessage]);
+  var requestType = message.text.split(" ")[0];
+  var requestContent = message.text.split(" ")[1];
+  if (requestType === Command.Help || requestType === Command.HelpAlt) {
+    switch (requestContent) {
+      case 'profile':
+        if (source.userId) {
+          return client.getProfile(source.userId).then(function (profile) {
+            return Utils.replyText(client, replyToken, ['Display name: ' + profile.displayName, 'Status message: ' + profile.statusMessage]);
+          });
+        } else {
+          return Utils.replyText(client, replyToken, 'Bot can\'t use profile API without user ID');
+        };
+      case 'menu':
+        return client.replyMessage(replyToken, {
+          type: 'template',
+          altText: 'Datetime pickers alt text',
+          template: {
+            type: 'buttons',
+            text: 'Welcome to NBA Chatbot',
+            actions: [{
+              type: 'datetimepicker',
+              label: 'Game by date',
+              data: 'type=DATE',
+              mode: 'date'
+            }, {
+              type: 'postback',
+              label: 'Search Team',
+              data: 'type=TEAM'
+            }]
+          }
         });
-      } else {
-        return Utils.replyText(client, replyToken, 'Bot can\'t use profile API without user ID');
-      };
-    case 'confirm':
-      return client.replyMessage(replyToken, {
-        type: 'template',
-        altText: 'Datetime pickers alt text',
-        template: {
-          type: 'buttons',
-          text: 'Welcome to NBA Chatbot',
-          actions: [{
-            type: 'datetimepicker',
-            label: 'Game by date',
-            data: 'type=DATE',
-            mode: 'date'
-          }]
-        }
-      });
-
-    case 'bye':
-      switch (source.type) {
-        case 'user':
-          return Utils.replyText(client, replyToken, 'Bot can\'t leave from 1:1 chat');
-        case 'group':
-          return Utils.replyText(client, replyToken, 'Leaving group').then(function () {
-            return client.leaveGroup(source.groupId);
-          });
-        case 'room':
-          return Utils.replyText(client, replyToken, 'Leaving room').then(function () {
-            return client.leaveRoom(source.roomId);
-          });
-      }
-    default:
-      console.log('Echo message to ' + replyToken + ': ' + message.text);
-      return Utils.replyText(client, replyToken, message.text);
+      default:
+        return Utils.replyText(client, replyToken, [Command.Help + ' menu -> Menu', Command.Help + ' profile -> Profile', Command.Team + ' Name -> Team Info', Command.Player + ' Name -> Player Info']);
+    }
+  } else if (requestType === Command.Team || requestType === Command.TeamAlt) {
+    return fetch.getTeam(requestContent, replyToken);
+  } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {} else {
+    Utils.replyText(client, replyToken, 'Unknown command, please type ' + Command.Help + ' or ' + Command.HelpAlt + ' for more info');
   }
-}
-
-function handleSticker(message, replyToken) {
-  return client.replyMessage(replyToken, {
-    type: 'sticker',
-    packageId: message.packageId,
-    stickerId: message.stickerId
-  });
 }
 
 // listen on port
