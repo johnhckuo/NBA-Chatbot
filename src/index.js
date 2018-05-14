@@ -47,10 +47,11 @@ function handleEvent(event) {
 
     case "postback":
       const data = Utils.toObject(event.postback.data);
-      console.log(data.date)
       switch (data.type) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
+        case 'TEAM':
+          return fetch.fetchTeamList(event.replyToken);
         case 'playersStats':
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'gamble':
@@ -99,12 +100,19 @@ function handleText(message, replyToken, source) {
           template: {
             type: 'buttons',
             text: 'Welcome to NBA Chatbot',
-            actions: [{
-              type: 'datetimepicker',
-              label: 'Game by date',
-              data: 'type=DATE',
-              mode: 'date'
-            }, ],
+            actions: [
+              {
+                type: 'datetimepicker',
+                label: 'Game by date',
+                data: 'type=DATE',
+                mode: 'date'
+              }, 
+              {
+                type: 'postback',
+                label: 'Search Team',
+                data: 'type=TEAM'
+              }, 
+            ],
           },
         }
       );

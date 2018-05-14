@@ -38,10 +38,10 @@ class Fetch {
         params: {}
       })
       .then((response) => {
-
+        const players = response.data.stats.activePlayers.filter(player => player.teamId === teamId);
         var leaders = {};
         Object.keys(this.ComparableStats).map((key) => {
-          leaders[key] = response.data.stats.activePlayers.slice();
+          leaders[key] = players.slice();
 
           if (key == "min") {
             leaders[key].sort((a, b) => {
@@ -74,6 +74,27 @@ class Fetch {
     } else {
       console.log("Data not initialized");
     }
+  }
+
+  fetchTeamList(replyToken){
+    var actions = [];
+    Object.keys(teams.league.standard).map((key)=>{
+      if (teams.league.standard[key].isNBAFranchise == true){
+        actions.push(
+          {
+            "type": "postback",
+            "label": `${teams.league.standard[key].fullName)}`,
+            "data": `type=teamList`
+          }
+      }
+    })
+    return {
+      //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+      "imageBackgroundColor": "#FFFFFF",
+      "title": teams.league.standard[game.vTeam.teamId].nickname + " vs. " + teams.league.standard[game.hTeam.teamId].nickname,
+      "text": description,
+      "actions": actions
+    };
   }
 
   transformToLocaleTime(startTimeUTC) {
@@ -153,7 +174,7 @@ class Fetch {
                 {
                   "type": "postback",
                   "label": `${teams.league.standard[game.vTeam.teamId].nickname} Stats`,
-                  "data": `type=playersStats&teamId=${game.hTeam.teamId}&gameId=${game.gameId}&date=${date}`
+                  "data": `type=playersStats&teamId=${game.vTeam.teamId}&gameId=${game.gameId}&date=${date}`
                 }
               ] :
               [{
