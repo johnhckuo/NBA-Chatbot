@@ -34,7 +34,7 @@ class Fetch {
         console.log("------- player data initialized -------")
       })
       .catch((error) => {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", replyToken, this.client);
       });
   }
 
@@ -65,42 +65,78 @@ class Fetch {
         return this.replyGameLeaders(leaders, replyToken)
       })
       .catch((error) => {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", replyToken, this.client);
       });
   }
 
   fetchTeamInfo(type, teamUrlCode, replyToken) {
+    console.log(`${API.RootURI}/2017/teams/${teamUrlCode}/${type}.json`)
     return axios.get(`${API.RootURI}/2017/teams/${teamUrlCode}/${type}.json`)
       .then((response) => {
-        var keys = Object.keys(response.data.league.standard);
-        var leaders = "";
-        for (var i = 0 ; i < keys.length ; i++){
-          var key = keys[i];
-          if (typeof Abbrev[key] != "undefined"){
-            var playerId = response.data.league.standard[key][0].personId;
-            leaders += `${Abbrev[key]} : ${this.fetchPlayerData(playerId).firstName} ${this.fetchPlayerData(playerId).lastName}\n`;
+        if (type == "leaders"){
+          var keys = Object.keys(response.data.league.standard);
+          var leaders = "";
+          for (var i = 0 ; i < keys.length ; i++){
+            var key = keys[i];
+            if (typeof Abbrev[key] != "undefined"){
+              var playerId = response.data.league.standard[key][0].personId;
+              leaders += `${Abbrev[key]} : ${this.getPlayerData("personId", playerId).firstName} ${this.getPlayerData("personId", playerId).lastName}\n`;
+            }
           }
+          return Utils.replyText(
+            this.client,
+            replyToken,
+            leaders
+          ) 
+        }else if(type == "schedule"){
+          var teamInfo = [];
+          var rawData = response.data.league.standard;
+          var currentTime = new Date();
+          for (var i = rawData.length -1 ; i >= 0 ; i--){
+            if (new Date(rawData[i].startTimeUTC) - currentTime >= 0){
+              teamInfo.push(rawData[i])
+            }else{
+              continue;
+            }
+          }
+
+          var schedule = "";
+          teamInfo.map((info)=>{
+            schedule += `Start Time: ${this.UTCtoLocaleTime(info.startTimeUTC)}\n${teams.league.standard[info.hTeam.teamId].nickname} vs. ${teams.league.standard[info.vTeam.teamId].nickname}\nHome Team: ${teams.league.standard[info.hTeam.teamId].nickname}\n----------\n`;
+          })
+
+          return Utils.replyText(
+            this.client,
+            replyToken,
+            schedule
+          ) 
         }
-        return Utils.replyText(
-          this.client,
-          replyToken,
-          leaders
-        )
+
       })
       .catch((error) => {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", replyToken, this.client);
       });
   }
 
-  fetchPlayerData(playerId) {
+  fetchPlayerRecentStats(playerId, replyToken){
+    return axios.get(`${API.RootURI}/2017/players/${playerId}_gamelog.json`)
+      .then((response) => {
+        return this.replyPlayerStats(response.data.league.standard, replyToken);
+      })
+      .catch((error) => {
+        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+      });
+  }
+
+  getPlayerData(indexType, searchIndex) {
     if (this.players != null) {
       for (let i = 0; i < this.players.length; i++) {
-        if (this.players[i].personId === playerId) {
+        if (this.players[i][indexType].toLowerCase() === searchIndex.toLowerCase()) {
           return this.players[i];
         }
       }
     } else {
-      console.log("Data not initialized");
+      throw new SystemException("PLAYER_DATA_NOT_INIT", replyToken, this.client);
     }
   }
   getTeam(teamName, replyToken) {
@@ -134,8 +170,36 @@ class Fetch {
         );
       }
     }
-    return Utils.replyText(this.client, replyToken, `Unknown team ${teamName}`);
+    throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
 
+  }
+
+  getPlayer(playerName, replyToken) {
+    var player = this.getPlayerData("lastName", playerName);
+    if (player == null){
+      throw new UserException("PLAYER_NOT_FOUND", replyToken, this.client);
+    }
+    player.teams = player.teams.map((team)=>{
+      return {team: teams.league.standard[team.teamId].nickname, seasonStart: team.seasonStart, seasonEnd: team.seasonEnd};
+    })
+    player.draft = Object.assign({}, player.draft, {team: teams.league.standard[player.draft.teamId].nickname});
+    delete player.draft.teamId;
+    this.client.replyMessage(
+      replyToken, {
+        type: 'template',
+        altText: 'team query',
+        template: {
+          type: 'buttons',
+          text: 'What do you want to know?',
+          actions: [{
+              type: 'postback',
+              label: 'Recent game stats',
+              data: `type=RECENT_STATS&playerId=${player.personId}`
+            }
+          ],
+        },
+      }
+    );
   }
 
   getTeamList(replyToken) {
@@ -174,9 +238,6 @@ class Fetch {
         }
       }
     );
-
-
-
   }
 
   UTCtoLocaleTime(startTimeUTC) {
@@ -200,7 +261,7 @@ class Fetch {
         return this.replyGameByDate(response.data.games, date, replyToken)
       })
       .catch((error) => {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", replyToken, this.client);
       });
   }
 
@@ -214,7 +275,7 @@ class Fetch {
           "columns": Object.keys(leaders).map((key) => {
             var title = `${this.ComparableStats[key]} leader`;
             var actions = leaders[key].map((leader) => {
-              var playerData = this.fetchPlayerData(leader.personId);
+              var playerData = this.getPlayerData("personId", leader.personId);
               var playerName = playerData.firstName + " " + playerData.lastName;
               return {
                 type: "postback",
@@ -237,16 +298,45 @@ class Fetch {
     );
   }
 
+  replyPlayerStats(stats, token){
+    var columns = stats.map((stat) => {
+            var team1 = stat.gameUrlCode.split("/")[1].slice(0, 3);
+            var team2 = stat.gameUrlCode.split("/")[1].slice(3, 6);
+            var date = new Date(stat.gameDateUTC);
+            var description = date.getFullYear()  + "/" + (date.getMonth() + 1) + "/" + date.getDate();
+            var actions = Object.keys(stat.stats).map((key)=>{
+              return {
+                "type": "postback",
+                "label": `${key}: ${stat.stats[key]}`,
+                "data": `type=display`
+              }
+            })
 
-  replyGameByDate(games, date, token) {
-    games = Array.isArray(games) ? games : [games];
-    return this.client.replyMessage(
+            return {
+              //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+              "imageBackgroundColor": "#FFFFFF",
+              "title": `${team1} vs. ${team2}`,
+              "text": description,
+              "actions": actions
+            };
+          });
+    this.client.replyMessage(
       token, {
         "type": "template",
         "altText": "Function Menu",
         "template": {
           "type": "carousel",
-          "columns": games.map((game) => {
+          "columns": columns,
+          "imageAspectRatio": "rectangle",
+          "imageSize": "cover"
+        }
+      }
+    );
+  }
+
+  replyGameByDate(games, date, token) {
+    games = Array.isArray(games) ? games : [games];
+    var columns = games.map((game) => {
 
             var isStarted = typeof game.endTimeUTC === "undefined" ? false : true;
             var description = isStarted ? `Game Ended. Final score: ${game.vTeam.score} : ${game.hTeam.score}` : `Game starts at ${this.UTCtoLocaleTime(game.startTimeUTC)}`;
@@ -274,7 +364,14 @@ class Fetch {
               "text": description,
               "actions": actions
             };
-          }),
+          });
+    return this.client.replyMessage(
+      token, {
+        "type": "template",
+        "altText": "Function Menu",
+        "template": {
+          "type": "carousel",
+          "columns": columns,
           "imageAspectRatio": "rectangle",
           "imageSize": "cover"
         }
@@ -282,6 +379,32 @@ class Fetch {
     );
   }
 
+}
+
+function SystemException(message, token, client) {
+  switch(message){
+    case "PLAYER_DATA_NOT_INIT":
+      return;
+    case "FETCH_ERROR":
+      return;
+    default:
+      console.log("system error: ", message)
+      Utils.replyText(client, token, "Oops! We've encountered some bugs. Please try again :(");
+  }
+
+}
+
+function UserException(message, token, client){
+  switch(message){
+    case "PLAYER_NOT_FOUND":
+      Utils.replyText(client, token, "Cannot find the player.\nPlease try again :(");
+      return;
+    case "TEAM_NOT_FOUND":
+      Utils.replyText(client, token, "Cannot find the team.\nPlease try again :(");
+      return;
+    default:
+      console.log("user error: ", message)
+  }
 }
 
 module.exports.Fetch = Fetch;

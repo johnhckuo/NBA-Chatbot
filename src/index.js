@@ -59,6 +59,8 @@ function handleEvent(event) {
           return fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
         case 'TEAM_SCHEDULE':
           return fetch.fetchTeamInfo("schedule", data.urlCode, event.replyToken);
+        case 'RECENT_STATS':
+          return fetch.fetchPlayerRecentStats(data.playerId, event.replyToken);
         case 'playersStats':
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'gamble':
@@ -138,9 +140,8 @@ function handleText(message, replyToken, source) {
 
   } else if (requestType === Command.Team || requestType === Command.TeamAlt) {
     return fetch.getTeam(requestContent, replyToken);
-
   } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {
-
+    return fetch.getPlayer(requestContent, replyToken);
   } else {
     Utils.replyText(client, replyToken, `Unknown command, please type ${Command.Help} or ${Command.HelpAlt} for more info`)
   }
