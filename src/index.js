@@ -9,6 +9,9 @@ const {
 const {
   Command
 } = require("./command");
+const {
+  API
+} = require('./api');
 const line = require('@line/bot-sdk');
 const express = require('express');
 const axios = require('axios');
@@ -91,6 +94,15 @@ function handleText(message, replyToken, source) {
   if (requestType === Command.Help || requestType === Command.HelpAlt) {
     switch (requestContent) {
       case 'profile':
+        axios.post(`${API.LineRoot}/user/${source.userId}/richmenu/${API.RichMenu['celtics']}`, {}, {
+          headers:{ Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`}
+        })
+        .then(function (response) {
+          console.log(response);
+        })
+        .catch(function (error) {
+          console.log(error);
+        });
         if (source.userId) {
           return client.getProfile(source.userId)
             .then((profile) => Utils.replyText(

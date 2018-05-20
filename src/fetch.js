@@ -28,7 +28,7 @@ class Fetch {
   }
 
   SYSTEM_FetchPlayerData() {
-    axios.get(`${API.RootURI}/2017/players.json`)
+    axios.get(`${API.NBARoot}/2017/players.json`)
       .then((response) => {
         this.players = response.data.league.standard;
         console.log("------- player data initialized -------")
@@ -39,7 +39,7 @@ class Fetch {
   }
 
   fetchPlayersStatsByGameId(teamId, gameId, date, replyToken) {
-    return axios.get(`${API.RootURI}/${date}/${gameId}_boxscore.json`, {
+    return axios.get(`${API.NBARoot}/${date}/${gameId}_boxscore.json`, {
         params: {}
       })
       .then((response) => {
@@ -70,8 +70,8 @@ class Fetch {
   }
 
   fetchTeamInfo(type, teamUrlCode, replyToken) {
-    console.log(`${API.RootURI}/2017/teams/${teamUrlCode}/${type}.json`)
-    return axios.get(`${API.RootURI}/2017/teams/${teamUrlCode}/${type}.json`)
+    console.log(`${API.NBARoot}/2017/teams/${teamUrlCode}/${type}.json`)
+    return axios.get(`${API.NBARoot}/2017/teams/${teamUrlCode}/${type}.json`)
       .then((response) => {
         if (type == "leaders"){
           var keys = Object.keys(response.data.league.standard);
@@ -87,7 +87,7 @@ class Fetch {
             this.client,
             replyToken,
             leaders
-          ) 
+          )
         }else if(type == "schedule"){
           var teamInfo = [];
           var rawData = response.data.league.standard;
@@ -109,7 +109,7 @@ class Fetch {
             this.client,
             replyToken,
             schedule
-          ) 
+          )
         }
 
       })
@@ -119,7 +119,7 @@ class Fetch {
   }
 
   fetchPlayerRecentStats(playerId, replyToken){
-    return axios.get(`${API.RootURI}/2017/players/${playerId}_gamelog.json`)
+    return axios.get(`${API.NBARoot}/2017/players/${playerId}_gamelog.json`)
       .then((response) => {
         return this.replyPlayerStats(response.data.league.standard, replyToken);
       })
@@ -254,7 +254,7 @@ class Fetch {
 
   fetchGameByDate(date, replyToken) {
     date = date.split("-").join("");
-    return axios.get(`${API.RootURI}/${date}/scoreboard.json`, {
+    return axios.get(`${API.NBARoot}/${date}/scoreboard.json`, {
         params: {}
       })
       .then((response) => {
