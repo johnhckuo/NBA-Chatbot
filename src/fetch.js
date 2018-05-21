@@ -224,7 +224,7 @@ class Fetch {
             {
               type: 'postback',
               label: 'Subscribe',
-              data: `type=Subscribe&urlCode=${urlName}`
+              data: `type=subscribe&urlCode=${urlName}`
             }
           ],
         },
@@ -432,11 +432,7 @@ class Fetch {
                 "label": `${teams.league.standard[game.vTeam.teamId].nickname} Stats`,
                 "data": `type=playersStats&teamId=${game.vTeam.teamId}&gameId=${game.gameId}&date=${date}`
               }
-            ] : [{
-              "type": "postback",
-              "label": "Subscribe",
-              "data": `type=gamble`
-            }];
+            ] : [];
             return {
               //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
               "imageBackgroundColor": "#FFFFFF",
@@ -458,6 +454,18 @@ class Fetch {
       }
     ).catch((e)=>{
       console.log(e.originalError.response.data.details)
+    });
+  }
+
+  updateUserPreference(teamUrlName, userId, replyToken){
+    axios.post(`${API.LineRoot}/user/${userId}/richmenu/${API.RichMenu[teamUrlName]}`, {}, {
+      headers:{ Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`}
+    })
+    .then(function (response) {
+      console.log(response);
+    })
+    .catch(function (error) {
+      console.log(error);
     });
   }
 

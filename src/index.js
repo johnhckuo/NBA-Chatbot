@@ -89,8 +89,11 @@ function handleEvent(event) {
               `${Command.Player} Name -> Player Info`
             ]
           )
-        case 'gamble':
-          console.log("nothing")
+        case 'subscribe':{
+          return fetch.updateUserPreference(data.urlCode, event.source.userId, event.replyToken);
+        }
+        case 'display':
+          console.log("display only")
         default:
           throw new Error(`Unknown data: ${JSON.stringify(data)}`);
       }
