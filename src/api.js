@@ -4,7 +4,9 @@ var API = {
   API_Table:"http://data.nba.net/10s/prod/v1/today.json",
   RichMenu:{
     celtics:"richmenu-627c96d93ae7dd9eed24af565ab010ab"
-  }
+  },
+  ActionsPerPage: 3,
+  LabelCharLength: 20
 };
 
 module.exports.API = API;

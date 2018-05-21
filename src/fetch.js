@@ -111,24 +111,23 @@ class Fetch {
           )
         }else if (type == "roster"){
           var players = response.data.league.standard.players;
-          
+
           var playersInfo = players.map((player)=>{
             return this.getPlayerData("personId", player.personId)
           })
 
           var columns = [];
           var actions = [];
-          var playersPerPage = 3;
           for (var i = 0 ; i < playersInfo.length ; i++){
-            if (i % playersPerPage == 0 && i != 0 ){
-              var currentPage = i / playersPerPage;
+            if (i % API.ActionsPerPage == 0 && i != 0 ){
+              var currentPage = i / API.ActionsPerPage;
               columns.push({
                 //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
                 "imageBackgroundColor": "#FFFFFF",
                 "title": "Team Players",
                 "text": "page"+currentPage,
                 "actions": actions
-              });   
+              });
               actions = [];
             }
             actions.push({
@@ -149,7 +148,9 @@ class Fetch {
                 "imageSize": "cover"
               }
             }
-          );
+          ).catch((e)=>{
+            console.log(e.originalError.response.data.details)
+          });
         }
 
       })
@@ -179,38 +180,58 @@ class Fetch {
       throw new SystemException("PLAYER_DATA_NOT_INIT", error, replyToken, this.client);
     }
   }
-  getTeam(teamName, replyToken) {
-    const keys = Object.keys(teams.league.standard);
-    for (var i = 0; i < keys.length; i++) {
-      var key = keys[i]
-      if (teamName.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() ||
-        teamName.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() ||
-        teamName.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()
-      ) {
-        return this.client.replyMessage(
-          replyToken, {
-            type: 'template',
-            altText: 'team query',
-            template: {
-              type: 'buttons',
-              text: 'What do you want to know?',
-              actions: [{
-                  type: 'postback',
-                  label: 'Team Leaders',
-                  data: `type=TEAM_LEADERS&urlCode=${teams.league.standard[key].urlName}`
-                },
-                {
-                  type: 'postback',
-                  label: 'Team Schedule',
-                  data: `type=TEAM_SCHEDULE&urlCode=${teams.league.standard[key].urlName}`
-                }
-              ],
-            },
-          }
-        );
+  getTeam(searchIndex, keyword, replyToken) {
+    var urlName = null;
+    if (searchIndex == "name"){
+      const keys = Object.keys(teams.league.standard);
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i]
+        if (keyword.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() ||
+          keyword.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() ||
+          keyword.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()
+        ) {
+          urlName = teams.league.standard[key].urlName;
+          break;
+        }
       }
+    }else if (searchIndex == "id"){
+      urlName = teams.league.standard[keyword].urlName;
+    }else{
+      throw new SystemException("TEAM_NOT_FOUND", {}, replyToken, this.client);
     }
-    throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
+
+    if (urlName == null){
+      throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
+    }
+
+    return this.client.replyMessage(
+      replyToken, {
+        type: 'template',
+        altText: 'team query',
+        template: {
+          type: 'buttons',
+          text: 'What do you want to know?',
+          actions: [{
+              type: 'postback',
+              label: 'Team Leaders',
+              data: `type=TEAM_LEADERS&urlCode=${urlName}`
+            },
+            {
+              type: 'postback',
+              label: 'Team Schedule',
+              data: `type=TEAM_SCHEDULE&urlCode=${urlName}`
+            },
+            {
+              type: 'postback',
+              label: 'Subscribe',
+              data: `type=Subscribe&urlCode=${urlName}`
+            }
+          ],
+        },
+      }
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
 
   }
 
@@ -239,39 +260,55 @@ class Fetch {
           ],
         },
       }
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
   }
 
   getTeamList(replyToken) {
+    var i = 0;
+    var columns = [];
+    var actions = [];
 
-    return this.client.replyMessage(
+    var keys = Object.keys(teams.league.standard);
+    for (var i = 0 ; i < keys.length ; i++){
+      if (teams.league.standard[keys[i]].isNBAFranchise == true) {
+        if (actions.length == API.ActionsPerPage){
+          columns.push({
+            //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+            "imageBackgroundColor": "#FFFFFF",
+            "text": "NBA Team List",
+            "actions": actions
+          });
+          actions = [];
+        }
+        var teamName;
+        if (teams.league.standard[keys[i]].fullName.length > API.LabelCharLength){
+          teamName = teams.league.standard[keys[i]].nickname;
+        }else{
+          teamName = teams.league.standard[keys[i]].fullName;
+        }
+        actions.push({
+          "type": "postback",
+          "label": teamName,
+          "data": `type=TEAM&teamId=${keys[i]}`
+        });
+      }
+    }
+    this.client.replyMessage(
       replyToken, {
         "type": "template",
         "altText": "Function Menu",
         "template": {
           "type": "carousel",
-          "columns": Object.keys(teams.league.standard).map((key) => {
-            var actions = [];
-            if (teams.league.standard[key].isNBAFranchise == true) {
-              actions.push({
-                "type": "postback",
-                "label": teams.league.standard[key].fullName,
-                "data": `type=queryTeam`
-              });
-            }
-            return {
-              //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-              "imageBackgroundColor": "#FFFFFF",
-              "title": teams.league.standard[key].fullName,
-              "text": "NBA Team List",
-              "actions": actions
-            };
-          }),
+          "columns": columns,
           "imageAspectRatio": "rectangle",
           "imageSize": "cover"
         }
       }
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
   }
 
   UTCtoLocaleTime(startTimeUTC) {
@@ -329,7 +366,9 @@ class Fetch {
           "imageSize": "cover"
         }
       }
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
   }
 
   replyPlayerStats(stats, token){
@@ -338,7 +377,7 @@ class Fetch {
             var team2 = stat.gameUrlCode.split("/")[1].slice(3, 6);
             var date = new Date(stat.gameDateUTC);
             var description = date.getFullYear()  + "/" + (date.getMonth() + 1) + "/" + date.getDate();
-            
+
             var keys = Object.keys(stat.stats);
             var actions = [];
             for (var i = 0 ; i < keys.length ; i++){
@@ -370,7 +409,9 @@ class Fetch {
           "imageSize": "cover"
         }
       }
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
   }
 
   replyGameByDate(games, date, token) {
@@ -415,7 +456,9 @@ class Fetch {
           "imageSize": "cover"
         }
       }
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.details)
+    });
   }
 
 }
@@ -429,6 +472,9 @@ function SystemException(type, error, token, client) {
       var message = error.originalError.response.data.message;
       var detail = error.originalError.response.data.details;
       console.log("fetch error", message, detail)
+      return;
+    case "UNKNOWN_COMMAND":
+      console.log("Unknown Command");
       return;
     default:
       console.log("system error: ", error)

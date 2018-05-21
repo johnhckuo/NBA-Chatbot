@@ -63,7 +63,7 @@ function handleEvent(event) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
         case 'TEAM':
-          return fetch.fetchTeamList(event.replyToken);
+          return fetch.getTeam("id", data.teamId, event.replyToken);
         case 'TEAM_LEADERS':
           return fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
         case 'TEAM_SCHEDULE':
@@ -76,14 +76,9 @@ function handleEvent(event) {
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'queryPlayer':
           return fetch.queryPlayer(data.playerName, event.replyToken);
-        case 'queryTeam':
-          return fetch.getTeamList(event.replyToken);
+          //TODO: change to TEAM_LIST
         case 'TEAM_TODAY':
-          var date = new Date();
-          var year = date.getFullYear();
-          var month = date.getMonth() < 9 ? '0' + (date.getMonth()+1) : (date.getMonth()+1);
-          var day = date.getDate() < 9 ? '0' + date.getDate() : date.getDate();
-          return fetch.fetchGameByDate(`${year}-${month}-${day}`, event.replyToken);
+          return fetch.getTeamList(event.replyToken);
         case 'help':
           return Utils.replyText(
             client,
@@ -179,7 +174,7 @@ function handleText(message, replyToken, source) {
     }
 
   } else if (requestType === Command.Team || requestType === Command.TeamAlt) {
-    return fetch.getTeam(requestContent, replyToken);
+    return fetch.getTeam("name", requestContent, replyToken);
   } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {
     return fetch.queryPlayer(requestContent, replyToken);
   } else {

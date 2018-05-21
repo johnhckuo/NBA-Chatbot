@@ -57,7 +57,7 @@ const RichMenuTemplate={
 	      },
 	      "action":{
 	          "type":"postback",
-	          "data":"type=TEAM_TODAY&urlCode=celtics"
+	          "data":"type=TEAM_LIST"
 	      }
 	    },
 	    {
