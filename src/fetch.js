@@ -34,7 +34,7 @@ class Fetch {
         console.log("------- player data initialized -------")
       })
       .catch((error) => {
-        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+        throw new SystemException("FETCH_ERROR", error, replyToken, this.client);
       });
   }
 
@@ -65,12 +65,11 @@ class Fetch {
         return this.replyGameLeaders(leaders, replyToken)
       })
       .catch((error) => {
-        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+        throw new SystemException("FETCH_ERROR", error, replyToken, this.client);
       });
   }
 
   fetchTeamInfo(type, teamUrlCode, replyToken) {
-    console.log(`${API.NBARoot}/2017/teams/${teamUrlCode}/${type}.json`)
     return axios.get(`${API.NBARoot}/2017/teams/${teamUrlCode}/${type}.json`)
       .then((response) => {
         if (type == "leaders"){
@@ -110,11 +109,52 @@ class Fetch {
             replyToken,
             schedule
           )
+        }else if (type == "roster"){
+          var players = response.data.league.standard.players;
+          
+          var playersInfo = players.map((player)=>{
+            return this.getPlayerData("personId", player.personId)
+          })
+
+          var columns = [];
+          var actions = [];
+          var playersPerPage = 3;
+          for (var i = 0 ; i < playersInfo.length ; i++){
+            if (i % playersPerPage == 0 && i != 0 ){
+              var currentPage = i / playersPerPage;
+              columns.push({
+                //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+                "imageBackgroundColor": "#FFFFFF",
+                "title": "Team Players",
+                "text": "page"+currentPage,
+                "actions": actions
+              });   
+              actions = [];
+            }
+            actions.push({
+              "type": "postback",
+              "label": playersInfo[i].firstName + " " + playersInfo[i].lastName,
+              "data": `type=queryPlayer&playerName=${playersInfo[i].lastName}`
+            });
+
+          }
+          return this.client.replyMessage(
+            replyToken, {
+              "type": "template",
+              "altText": "Player List",
+              "template": {
+                "type": "carousel",
+                "columns": columns,
+                "imageAspectRatio": "rectangle",
+                "imageSize": "cover"
+              }
+            }
+          );
         }
 
       })
       .catch((error) => {
-        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+        throw new SystemException("FETCH_ERROR", error, replyToken, this.client);
       });
   }
 
@@ -124,7 +164,7 @@ class Fetch {
         return this.replyPlayerStats(response.data.league.standard, replyToken);
       })
       .catch((error) => {
-        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+        throw new SystemException("FETCH_ERROR", error, replyToken, this.client);
       });
   }
 
@@ -136,7 +176,7 @@ class Fetch {
         }
       }
     } else {
-      throw new SystemException("PLAYER_DATA_NOT_INIT", replyToken, this.client);
+      throw new SystemException("PLAYER_DATA_NOT_INIT", error, replyToken, this.client);
     }
   }
   getTeam(teamName, replyToken) {
@@ -174,7 +214,7 @@ class Fetch {
 
   }
 
-  getPlayer(playerName, replyToken) {
+  queryPlayer(playerName, replyToken) {
     var player = this.getPlayerData("lastName", playerName);
     if (player == null){
       throw new UserException("PLAYER_NOT_FOUND", replyToken, this.client);
@@ -261,7 +301,7 @@ class Fetch {
         return this.replyGameByDate(response.data.games, date, replyToken)
       })
       .catch((error) => {
-        throw new SystemException("FETCH_ERROR", replyToken, this.client);
+        throw new SystemException("FETCH_ERROR", error, replyToken, this.client);
       });
   }
 
@@ -304,14 +344,19 @@ class Fetch {
             var team2 = stat.gameUrlCode.split("/")[1].slice(3, 6);
             var date = new Date(stat.gameDateUTC);
             var description = date.getFullYear()  + "/" + (date.getMonth() + 1) + "/" + date.getDate();
-            var actions = Object.keys(stat.stats).map((key)=>{
-              return {
-                "type": "postback",
-                "label": `${key}: ${stat.stats[key]}`,
-                "data": `type=display`
+            
+            var keys = Object.keys(stat.stats);
+            var actions = [];
+            for (var i = 0 ; i < keys.length ; i++){
+              if (keys[i] === "offReb" || keys[i] === "defReb"){
+                continue;
               }
-            })
-
+              actions.push({
+                "type": "postback",
+                "label": `${keys[i]}: ${stat.stats[keys[i]]}`,
+                "data": `type=display`
+              });
+            }
             return {
               //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
               "imageBackgroundColor": "#FFFFFF",
@@ -381,14 +426,18 @@ class Fetch {
 
 }
 
-function SystemException(message, token, client) {
-  switch(message){
+function SystemException(type, error, token, client) {
+  switch(type){
     case "PLAYER_DATA_NOT_INIT":
+      console.log("data not init yet")
       return;
     case "FETCH_ERROR":
+      var message = error.originalError.response.data.message;
+      var detail = error.originalError.response.data.details;
+      console.log("fetch error", message, detail)
       return;
     default:
-      console.log("system error: ", message)
+      console.log("system error: ", error)
       Utils.replyText(client, token, "Oops! We've encountered some bugs. Please try again :(");
   }
 
@@ -397,9 +446,11 @@ function SystemException(message, token, client) {
 function UserException(message, token, client){
   switch(message){
     case "PLAYER_NOT_FOUND":
+      console.log("PLAYER_NOT_FOUND");
       Utils.replyText(client, token, "Cannot find the player.\nPlease try again :(");
       return;
     case "TEAM_NOT_FOUND":
+      console.log("TEAM_NOT_FOUND");
       Utils.replyText(client, token, "Cannot find the team.\nPlease try again :(");
       return;
     default:
