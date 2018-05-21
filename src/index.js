@@ -61,6 +61,8 @@ function handleEvent(event) {
       const data = Utils.toObject(event.postback.data);
       switch (data.type) {
         case 'DATE':
+              console.log(event.postback.params.date)
+
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
         case 'TEAM':
           return fetch.fetchTeamList(event.replyToken);
@@ -76,6 +78,22 @@ function handleEvent(event) {
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'queryPlayer':
           return fetch.queryPlayer(data.playerName, event.replyToken);
+        case 'TEAM_TODAY':
+          var date = new Date();
+          var year = date.getFullYear();
+          var month = date.getMonth() < 9 ? '0' + (date.getMonth()+1) : (date.getMonth()+1);
+          var day = date.getDate() < 9 ? '0' + date.getDate() : date.getDate();
+          return fetch.fetchGameByDate(`${year}-${month}-${day}`, event.replyToken);
+        case 'help':
+          return Utils.replyText(
+            client,
+            event.replyToken, [
+              `${Command.Help} menu -> Menu`,
+              `${Command.Help} profile -> Profile`,
+              `${Command.Team} Name -> Team Info`,
+              `${Command.Player} Name -> Player Info`
+            ]
+          )
         case 'gamble':
           console.log("nothing")
         default:

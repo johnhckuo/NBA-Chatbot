@@ -9,8 +9,8 @@ const RichMenuTemplate={
 	    "height":height
 	},
 	"selected":true,
-	"name":"Controller",
-	"chatBarText":"Controller",
+	"name":"Main Menu",
+	"chatBarText":"Main Menu",
 	"areas":[
 	    {
 	      "bounds":{
