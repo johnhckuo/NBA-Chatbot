@@ -61,8 +61,6 @@ function handleEvent(event) {
       const data = Utils.toObject(event.postback.data);
       switch (data.type) {
         case 'DATE':
-              console.log(event.postback.params.date)
-
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
         case 'TEAM':
           return fetch.fetchTeamList(event.replyToken);
@@ -78,6 +76,8 @@ function handleEvent(event) {
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'queryPlayer':
           return fetch.queryPlayer(data.playerName, event.replyToken);
+        case 'queryTeam':
+          return fetch.getTeamList(event.replyToken);
         case 'TEAM_TODAY':
           var date = new Date();
           var year = date.getFullYear();

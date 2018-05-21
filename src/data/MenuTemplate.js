@@ -1,8 +1,8 @@
 const width = 2500;
 const height = 1686;
+const xSegment = width/3;
+const ySegment = height/2;
 
-const xSegment = 2500/3;
-const ySegment = 1686/2;
 const RichMenuTemplate={
 	"size":{
 	    "width":width,

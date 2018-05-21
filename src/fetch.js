@@ -256,20 +256,14 @@ class Fetch {
               actions.push({
                 "type": "postback",
                 "label": teams.league.standard[key].fullName,
-                "data": `type=teamList`
+                "data": `type=queryTeam`
               });
             }
-
-            var actions = [{
-              "type": "postback",
-              "label": 'test',
-              "data": `type=playersStats`
-            }];
             return {
               //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
               "imageBackgroundColor": "#FFFFFF",
               "title": teams.league.standard[key].fullName,
-              "text": "ff",
+              "text": "NBA Team List",
               "actions": actions
             };
           }),
