@@ -1,6 +1,8 @@
 # NBA-Chatbot
 A line chatbot built to report NBA live stats
 
+<img src="https://qr-official.line.me/L/3R2wBzbdaC.png">
+
 ## Installation and Building
 
 ```bash
