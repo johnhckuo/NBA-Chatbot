@@ -45,6 +45,7 @@ app.post('/callback', line.middleware(config), (req, res) => {
 
 //INIT.start();
 //INIT.fetchList();
+//INIT.uploadImage();
 
 function handleEvent(event) {
   switch (event.type) {
@@ -76,8 +77,7 @@ function handleEvent(event) {
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
         case 'queryPlayer':
           return fetch.queryPlayer(data.playerName, event.replyToken);
-          //TODO: change to TEAM_LIST
-        case 'TEAM_TODAY':
+        case 'TEAM_LIST':
           return fetch.getTeamList(event.replyToken);
         case 'help':
           return Utils.replyText(

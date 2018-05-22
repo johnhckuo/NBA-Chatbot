@@ -99,15 +99,19 @@ class Fetch {
             }
           }
 
-          var schedule = "";
-          teamInfo.map((info)=>{
-            schedule += `Start Time: ${this.UTCtoLocaleTime(info.startTimeUTC)}\n${teams.league.standard[info.hTeam.teamId].nickname} vs. ${teams.league.standard[info.vTeam.teamId].nickname}\nHome Team: ${teams.league.standard[info.hTeam.teamId].nickname}\n----------\n`;
-          })
+          var content = "";
+          if (teamInfo.length == 0){
+            content = `No schedule for ${teamUrlCode} this season`
+          }else{
+            teamInfo.map((info)=>{
+              content += `Start Time: ${this.UTCtoLocaleTime(info.startTimeUTC)}\n${teams.league.standard[info.hTeam.teamId].nickname} vs. ${teams.league.standard[info.vTeam.teamId].nickname}\nHome Team: ${teams.league.standard[info.hTeam.teamId].nickname}\n----------\n`;
+            })
+          }
 
           return Utils.replyText(
             this.client,
             replyToken,
-            schedule
+            content
           )
         }else if (type == "roster"){
           var players = response.data.league.standard.players;
@@ -462,10 +466,10 @@ class Fetch {
       headers:{ Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`}
     })
     .then(function (response) {
-      console.log(response);
+      Utils.replyText(this.client, replyToken, `You've successfully subscribed team ${teamUrlName}`);
     })
     .catch(function (error) {
-      console.log(error);
+      throw new SystemException("SUBSCRIBE_ERROR", error, replyToken, this.client);
     });
   }
 
@@ -483,6 +487,9 @@ function SystemException(type, error, token, client) {
       return;
     case "UNKNOWN_COMMAND":
       console.log("Unknown Command");
+      return;
+    case "SUBSCRIBE_ERROR":
+      console.log("Subscribe Error");
       return;
     default:
       console.log("system error: ", error)

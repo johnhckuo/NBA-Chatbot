@@ -40,11 +40,11 @@ var Fetch = function () {
     value: function SYSTEM_FetchPlayerData() {
       var _this = this;
 
-      axios.get(API.RootURI + '/2017/players.json').then(function (response) {
+      axios.get(API.NBARoot + '/2017/players.json').then(function (response) {
         _this.players = response.data.league.standard;
         console.log("------- player data initialized -------");
       }).catch(function (error) {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this.client);
       });
     }
   }, {
@@ -52,7 +52,7 @@ var Fetch = function () {
     value: function fetchPlayersStatsByGameId(teamId, gameId, date, replyToken) {
       var _this2 = this;
 
-      return axios.get(API.RootURI + '/' + date + '/' + gameId + '_boxscore.json', {
+      return axios.get(API.NBARoot + '/' + date + '/' + gameId + '_boxscore.json', {
         params: {}
       }).then(function (response) {
         var players = response.data.stats.activePlayers.filter(function (player) {
@@ -78,7 +78,7 @@ var Fetch = function () {
         });
         return _this2.replyGameLeaders(leaders, replyToken);
       }).catch(function (error) {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this2.client);
       });
     }
   }, {
@@ -86,97 +86,226 @@ var Fetch = function () {
     value: function fetchTeamInfo(type, teamUrlCode, replyToken) {
       var _this3 = this;
 
-      return axios.get(API.RootURI + '/2017/teams/' + teamUrlCode + '/' + type + '.json').then(function (response) {
-        var keys = Object.keys(response.data.league.standard);
-        var leaders = "";
-        for (var i = 0; i < keys.length; i++) {
-          var key = keys[i];
-          if (typeof Abbrev[key] != "undefined") {
-            var playerId = response.data.league.standard[key][0].personId;
-            leaders += Abbrev[key] + ' : ' + _this3.fetchPlayerData(playerId).firstName + ' ' + _this3.fetchPlayerData(playerId).lastName + '\n';
+      return axios.get(API.NBARoot + '/2017/teams/' + teamUrlCode + '/' + type + '.json').then(function (response) {
+        if (type == "leaders") {
+          var keys = Object.keys(response.data.league.standard);
+          var leaders = "";
+          for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            if (typeof Abbrev[key] != "undefined") {
+              var playerId = response.data.league.standard[key][0].personId;
+              leaders += Abbrev[key] + ' : ' + _this3.getPlayerData("personId", playerId).firstName + ' ' + _this3.getPlayerData("personId", playerId).lastName + '\n';
+            }
           }
+          return Utils.replyText(_this3.client, replyToken, leaders);
+        } else if (type == "schedule") {
+          var teamInfo = [];
+          var rawData = response.data.league.standard;
+          var currentTime = new Date();
+          for (var i = rawData.length - 1; i >= 0; i--) {
+            if (new Date(rawData[i].startTimeUTC) - currentTime >= 0) {
+              teamInfo.push(rawData[i]);
+            } else {
+              continue;
+            }
+          }
+
+          var content = "";
+          if (teamInfo.length == 0) {
+            content = 'No schedule for ' + teamUrlCode + ' this season';
+          } else {
+            teamInfo.map(function (info) {
+              content += 'Start Time: ' + _this3.UTCtoLocaleTime(info.startTimeUTC) + '\n' + teams.league.standard[info.hTeam.teamId].nickname + ' vs. ' + teams.league.standard[info.vTeam.teamId].nickname + '\nHome Team: ' + teams.league.standard[info.hTeam.teamId].nickname + '\n----------\n';
+            });
+          }
+
+          return Utils.replyText(_this3.client, replyToken, content);
+        } else if (type == "roster") {
+          var players = response.data.league.standard.players;
+
+          var playersInfo = players.map(function (player) {
+            return _this3.getPlayerData("personId", player.personId);
+          });
+
+          var columns = [];
+          var actions = [];
+          for (var i = 0; i < playersInfo.length; i++) {
+            if (i % API.ActionsPerPage == 0 && i != 0) {
+              var currentPage = i / API.ActionsPerPage;
+              columns.push({
+                //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+                "imageBackgroundColor": "#FFFFFF",
+                "title": "Team Players",
+                "text": "page" + currentPage,
+                "actions": actions
+              });
+              actions = [];
+            }
+            actions.push({
+              "type": "postback",
+              "label": playersInfo[i].firstName + " " + playersInfo[i].lastName,
+              "data": 'type=queryPlayer&playerName=' + playersInfo[i].lastName
+            });
+          }
+          return _this3.client.replyMessage(replyToken, {
+            "type": "template",
+            "altText": "Player List",
+            "template": {
+              "type": "carousel",
+              "columns": columns,
+              "imageAspectRatio": "rectangle",
+              "imageSize": "cover"
+            }
+          }).catch(function (e) {
+            console.log(e.originalError.response.data.details);
+          });
         }
-        return Utils.replyText(_this3.client, replyToken, leaders);
       }).catch(function (error) {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this3.client);
       });
     }
   }, {
-    key: 'fetchPlayerData',
-    value: function fetchPlayerData(playerId) {
+    key: 'fetchPlayerRecentStats',
+    value: function fetchPlayerRecentStats(playerId, replyToken) {
+      var _this4 = this;
+
+      return axios.get(API.NBARoot + '/2017/players/' + playerId + '_gamelog.json').then(function (response) {
+        return _this4.replyPlayerStats(response.data.league.standard, replyToken);
+      }).catch(function (error) {
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this4.client);
+      });
+    }
+  }, {
+    key: 'getPlayerData',
+    value: function getPlayerData(indexType, searchIndex) {
       if (this.players != null) {
         for (var i = 0; i < this.players.length; i++) {
-          if (this.players[i].personId === playerId) {
+          if (this.players[i][indexType].toLowerCase() === searchIndex.toLowerCase()) {
             return this.players[i];
           }
         }
       } else {
-        console.log("Data not initialized");
+        throw new SystemException("PLAYER_DATA_NOT_INIT", error, replyToken, this.client);
       }
     }
   }, {
     key: 'getTeam',
-    value: function getTeam(teamName, replyToken) {
-      var keys = Object.keys(teams.league.standard);
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        if (teamName.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() || teamName.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() || teamName.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()) {
-          return this.client.replyMessage(replyToken, {
-            type: 'template',
-            altText: 'team query',
-            template: {
-              type: 'buttons',
-              text: 'What do you want to know?',
-              actions: [{
-                type: 'postback',
-                label: 'Team Leaders',
-                data: 'type=TEAM_LEADERS&urlCode=' + teams.league.standard[key].urlName
-              }, {
-                type: 'postback',
-                label: 'Team Schedule',
-                data: 'type=TEAM_SCHEDULE&urlCode=' + teams.league.standard[key].urlName
-              }]
-            }
-          });
+    value: function getTeam(searchIndex, keyword, replyToken) {
+      var urlName = null;
+      if (searchIndex == "name") {
+        var keys = Object.keys(teams.league.standard);
+        for (var i = 0; i < keys.length; i++) {
+          var key = keys[i];
+          if (keyword.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()) {
+            urlName = teams.league.standard[key].urlName;
+            break;
+          }
         }
+      } else if (searchIndex == "id") {
+        urlName = teams.league.standard[keyword].urlName;
+      } else {
+        throw new SystemException("TEAM_NOT_FOUND", {}, replyToken, this.client);
       }
-      return Utils.replyText(this.client, replyToken, 'Unknown team ' + teamName);
+
+      if (urlName == null) {
+        throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
+      }
+
+      return this.client.replyMessage(replyToken, {
+        type: 'template',
+        altText: 'team query',
+        template: {
+          type: 'buttons',
+          text: 'What do you want to know?',
+          actions: [{
+            type: 'postback',
+            label: 'Team Leaders',
+            data: 'type=TEAM_LEADERS&urlCode=' + urlName
+          }, {
+            type: 'postback',
+            label: 'Team Schedule',
+            data: 'type=TEAM_SCHEDULE&urlCode=' + urlName
+          }, {
+            type: 'postback',
+            label: 'Subscribe',
+            data: 'type=subscribe&urlCode=' + urlName
+          }]
+        }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
+      });
+    }
+  }, {
+    key: 'queryPlayer',
+    value: function queryPlayer(playerName, replyToken) {
+      var player = this.getPlayerData("lastName", playerName);
+      if (player == null) {
+        throw new UserException("PLAYER_NOT_FOUND", replyToken, this.client);
+      }
+      player.teams = player.teams.map(function (team) {
+        return { team: teams.league.standard[team.teamId].nickname, seasonStart: team.seasonStart, seasonEnd: team.seasonEnd };
+      });
+      player.draft = Object.assign({}, player.draft, { team: teams.league.standard[player.draft.teamId].nickname });
+      delete player.draft.teamId;
+      this.client.replyMessage(replyToken, {
+        type: 'template',
+        altText: 'team query',
+        template: {
+          type: 'buttons',
+          text: 'What do you want to know?',
+          actions: [{
+            type: 'postback',
+            label: 'Recent game stats',
+            data: 'type=RECENT_STATS&playerId=' + player.personId
+          }]
+        }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
+      });
     }
   }, {
     key: 'getTeamList',
     value: function getTeamList(replyToken) {
+      var i = 0;
+      var columns = [];
+      var actions = [];
 
-      return this.client.replyMessage(replyToken, {
+      var keys = Object.keys(teams.league.standard);
+      for (var i = 0; i < keys.length; i++) {
+        if (teams.league.standard[keys[i]].isNBAFranchise == true) {
+          if (actions.length == API.ActionsPerPage) {
+            columns.push({
+              //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+              "imageBackgroundColor": "#FFFFFF",
+              "text": "NBA Team List",
+              "actions": actions
+            });
+            actions = [];
+          }
+          var teamName;
+          if (teams.league.standard[keys[i]].fullName.length > API.LabelCharLength) {
+            teamName = teams.league.standard[keys[i]].nickname;
+          } else {
+            teamName = teams.league.standard[keys[i]].fullName;
+          }
+          actions.push({
+            "type": "postback",
+            "label": teamName,
+            "data": 'type=TEAM&teamId=' + keys[i]
+          });
+        }
+      }
+      this.client.replyMessage(replyToken, {
         "type": "template",
         "altText": "Function Menu",
         "template": {
           "type": "carousel",
-          "columns": Object.keys(teams.league.standard).map(function (key) {
-            var actions = [];
-            if (teams.league.standard[key].isNBAFranchise == true) {
-              actions.push({
-                "type": "postback",
-                "label": teams.league.standard[key].fullName,
-                "data": 'type=teamList'
-              });
-            }
-
-            var actions = [{
-              "type": "postback",
-              "label": 'test',
-              "data": 'type=playersStats'
-            }];
-            return {
-              //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-              "imageBackgroundColor": "#FFFFFF",
-              "title": teams.league.standard[key].fullName,
-              "text": "ff",
-              "actions": actions
-            };
-          }),
+          "columns": columns,
           "imageAspectRatio": "rectangle",
           "imageSize": "cover"
         }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
       });
     }
   }, {
@@ -195,21 +324,21 @@ var Fetch = function () {
   }, {
     key: 'fetchGameByDate',
     value: function fetchGameByDate(date, replyToken) {
-      var _this4 = this;
+      var _this5 = this;
 
       date = date.split("-").join("");
-      return axios.get(API.RootURI + '/' + date + '/scoreboard.json', {
+      return axios.get(API.NBARoot + '/' + date + '/scoreboard.json', {
         params: {}
       }).then(function (response) {
-        return _this4.replyGameByDate(response.data.games, date, replyToken);
+        return _this5.replyGameByDate(response.data.games, date, replyToken);
       }).catch(function (error) {
-        console.log(error);
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this5.client);
       });
     }
   }, {
     key: 'replyGameLeaders',
     value: function replyGameLeaders(leaders, token) {
-      var _this5 = this;
+      var _this6 = this;
 
       return this.client.replyMessage(token, {
         "type": "template",
@@ -217,9 +346,9 @@ var Fetch = function () {
         "template": {
           "type": "carousel",
           "columns": Object.keys(leaders).map(function (key) {
-            var title = _this5.ComparableStats[key] + ' leader';
+            var title = _this6.ComparableStats[key] + ' leader';
             var actions = leaders[key].map(function (leader) {
-              var playerData = _this5.fetchPlayerData(leader.personId);
+              var playerData = _this6.getPlayerData("personId", leader.personId);
               var playerName = playerData.firstName + " " + playerData.lastName;
               return {
                 type: "postback",
@@ -238,54 +367,145 @@ var Fetch = function () {
           "imageAspectRatio": "rectangle",
           "imageSize": "cover"
         }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
+      });
+    }
+  }, {
+    key: 'replyPlayerStats',
+    value: function replyPlayerStats(stats, token) {
+      var columns = stats.map(function (stat) {
+        var team1 = stat.gameUrlCode.split("/")[1].slice(0, 3);
+        var team2 = stat.gameUrlCode.split("/")[1].slice(3, 6);
+        var date = new Date(stat.gameDateUTC);
+        var description = date.getFullYear() + "/" + (date.getMonth() + 1) + "/" + date.getDate();
+
+        var keys = Object.keys(stat.stats);
+        var actions = [];
+        for (var i = 0; i < keys.length; i++) {
+          if (keys[i] === "offReb" || keys[i] === "defReb") {
+            continue;
+          }
+          actions.push({
+            "type": "postback",
+            "label": keys[i] + ': ' + stat.stats[keys[i]],
+            "data": 'type=display'
+          });
+        }
+        return {
+          //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+          "imageBackgroundColor": "#FFFFFF",
+          "title": team1 + ' vs. ' + team2,
+          "text": description,
+          "actions": actions
+        };
+      });
+      this.client.replyMessage(token, {
+        "type": "template",
+        "altText": "Function Menu",
+        "template": {
+          "type": "carousel",
+          "columns": columns,
+          "imageAspectRatio": "rectangle",
+          "imageSize": "cover"
+        }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
       });
     }
   }, {
     key: 'replyGameByDate',
     value: function replyGameByDate(games, date, token) {
-      var _this6 = this;
+      var _this7 = this;
 
       games = Array.isArray(games) ? games : [games];
+      var columns = games.map(function (game) {
+
+        var isStarted = typeof game.endTimeUTC === "undefined" ? false : true;
+        var description = isStarted ? 'Game Ended. Final score: ' + game.vTeam.score + ' : ' + game.hTeam.score : 'Game starts at ' + _this7.UTCtoLocaleTime(game.startTimeUTC);
+        description = description.split("GMT")[0] + "\n" + game.playoffs.seriesSummaryText;
+
+        var actions = isStarted ? [{
+          "type": "postback",
+          "label": teams.league.standard[game.hTeam.teamId].nickname + ' Stats',
+          "data": 'type=playersStats&teamId=' + game.hTeam.teamId + '&gameId=' + game.gameId + '&date=' + date
+        }, {
+          "type": "postback",
+          "label": teams.league.standard[game.vTeam.teamId].nickname + ' Stats',
+          "data": 'type=playersStats&teamId=' + game.vTeam.teamId + '&gameId=' + game.gameId + '&date=' + date
+        }] : [];
+        return {
+          //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
+          "imageBackgroundColor": "#FFFFFF",
+          "title": teams.league.standard[game.vTeam.teamId].nickname + " vs. " + teams.league.standard[game.hTeam.teamId].nickname,
+          "text": description,
+          "actions": actions
+        };
+      });
       return this.client.replyMessage(token, {
         "type": "template",
         "altText": "Function Menu",
         "template": {
           "type": "carousel",
-          "columns": games.map(function (game) {
-
-            var isStarted = typeof game.endTimeUTC === "undefined" ? false : true;
-            var description = isStarted ? 'Game Ended. Final score: ' + game.vTeam.score + ' : ' + game.hTeam.score : 'Game starts at ' + _this6.UTCtoLocaleTime(game.startTimeUTC);
-            description = description.split("GMT")[0] + "\n" + game.playoffs.seriesSummaryText;
-
-            var actions = isStarted ? [{
-              "type": "postback",
-              "label": teams.league.standard[game.hTeam.teamId].nickname + ' Stats',
-              "data": 'type=playersStats&teamId=' + game.hTeam.teamId + '&gameId=' + game.gameId + '&date=' + date
-            }, {
-              "type": "postback",
-              "label": teams.league.standard[game.vTeam.teamId].nickname + ' Stats',
-              "data": 'type=playersStats&teamId=' + game.vTeam.teamId + '&gameId=' + game.gameId + '&date=' + date
-            }] : [{
-              "type": "postback",
-              "label": "Subscribe",
-              "data": 'type=gamble'
-            }];
-            return {
-              //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
-              "imageBackgroundColor": "#FFFFFF",
-              "title": teams.league.standard[game.vTeam.teamId].nickname + " vs. " + teams.league.standard[game.hTeam.teamId].nickname,
-              "text": description,
-              "actions": actions
-            };
-          }),
+          "columns": columns,
           "imageAspectRatio": "rectangle",
           "imageSize": "cover"
         }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
+      });
+    }
+  }, {
+    key: 'updateUserPreference',
+    value: function updateUserPreference(teamUrlName, userId, replyToken) {
+      axios.post(API.LineRoot + '/user/' + userId + '/richmenu/' + API.RichMenu[teamUrlName], {}, {
+        headers: { Authorization: 'Bearer ' + process.env.CHANNEL_ACCESS_TOKEN }
+      }).then(function (response) {
+        Utils.replyText(this.client, replyToken, 'You\'ve successfully subscribed team ' + teamUrlName);
+      }).catch(function (error) {
+        throw new SystemException("SUBSCRIBE_ERROR", error, replyToken, this.client);
       });
     }
   }]);
 
   return Fetch;
 }();
+
+function SystemException(type, error, token, client) {
+  switch (type) {
+    case "PLAYER_DATA_NOT_INIT":
+      console.log("data not init yet");
+      return;
+    case "FETCH_ERROR":
+      var message = error.originalError.response.data.message;
+      var detail = error.originalError.response.data.details;
+      console.log("fetch error", message, detail);
+      return;
+    case "UNKNOWN_COMMAND":
+      console.log("Unknown Command");
+      return;
+    case "SUBSCRIBE_ERROR":
+      console.log("Subscribe Error");
+      return;
+    default:
+      console.log("system error: ", error);
+      Utils.replyText(client, token, "Oops! We've encountered some bugs. Please try again :(");
+  }
+}
+
+function UserException(message, token, client) {
+  switch (message) {
+    case "PLAYER_NOT_FOUND":
+      console.log("PLAYER_NOT_FOUND");
+      Utils.replyText(client, token, "Cannot find the player.\nPlease try again :(");
+      return;
+    case "TEAM_NOT_FOUND":
+      console.log("TEAM_NOT_FOUND");
+      Utils.replyText(client, token, "Cannot find the team.\nPlease try again :(");
+      return;
+    default:
+      console.log("user error: ", message);
+  }
+}
 
 module.exports.Fetch = Fetch;

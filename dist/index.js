@@ -11,6 +11,12 @@ var _require2 = require("./utils"),
 var _require3 = require("./command"),
     Command = _require3.Command;
 
+var _require4 = require('./api'),
+    API = _require4.API;
+
+var _require5 = require('./init'),
+    INIT = _require5.INIT;
+
 var line = require('@line/bot-sdk');
 var express = require('express');
 var axios = require('axios');
@@ -39,6 +45,10 @@ app.post('/callback', line.middleware(config), function (req, res) {
   });
 });
 
+//INIT.start();
+//INIT.fetchList();
+//INIT.uploadImage();
+
 function handleEvent(event) {
   switch (event.type) {
     case 'message':
@@ -56,15 +66,29 @@ function handleEvent(event) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
         case 'TEAM':
-          return fetch.fetchTeamList(event.replyToken);
+          return fetch.getTeam("id", data.teamId, event.replyToken);
         case 'TEAM_LEADERS':
           return fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
         case 'TEAM_SCHEDULE':
           return fetch.fetchTeamInfo("schedule", data.urlCode, event.replyToken);
+        case 'TEAM_ROSTER':
+          return fetch.fetchTeamInfo("roster", data.urlCode, event.replyToken);
+        case 'RECENT_STATS':
+          return fetch.fetchPlayerRecentStats(data.playerId, event.replyToken);
         case 'playersStats':
           return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken);
-        case 'gamble':
-          console.log("nothing");
+        case 'queryPlayer':
+          return fetch.queryPlayer(data.playerName, event.replyToken);
+        case 'TEAM_LIST':
+          return fetch.getTeamList(event.replyToken);
+        case 'help':
+          return Utils.replyText(client, event.replyToken, [Command.Help + ' menu -> Menu', Command.Help + ' profile -> Profile', Command.Team + ' Name -> Team Info', Command.Player + ' Name -> Player Info']);
+        case 'subscribe':
+          {
+            return fetch.updateUserPreference(data.urlCode, event.source.userId, event.replyToken);
+          }
+        case 'display':
+          console.log("display only");
         default:
           throw new Error('Unknown data: ' + JSON.stringify(data));
       }
@@ -91,6 +115,13 @@ function handleText(message, replyToken, source) {
   if (requestType === Command.Help || requestType === Command.HelpAlt) {
     switch (requestContent) {
       case 'profile':
+        axios.post(API.LineRoot + '/user/' + source.userId + '/richmenu/' + API.RichMenu['celtics'], {}, {
+          headers: { Authorization: 'Bearer ' + process.env.CHANNEL_ACCESS_TOKEN }
+        }).then(function (response) {
+          console.log(response);
+        }).catch(function (error) {
+          console.log(error);
+        });
         if (source.userId) {
           return client.getProfile(source.userId).then(function (profile) {
             return Utils.replyText(client, replyToken, ['Display name: ' + profile.displayName, 'Status message: ' + profile.statusMessage]);
@@ -121,8 +152,10 @@ function handleText(message, replyToken, source) {
         return Utils.replyText(client, replyToken, [Command.Help + ' menu -> Menu', Command.Help + ' profile -> Profile', Command.Team + ' Name -> Team Info', Command.Player + ' Name -> Player Info']);
     }
   } else if (requestType === Command.Team || requestType === Command.TeamAlt) {
-    return fetch.getTeam(requestContent, replyToken);
-  } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {} else {
+    return fetch.getTeam("name", requestContent, replyToken);
+  } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {
+    return fetch.queryPlayer(requestContent, replyToken);
+  } else {
     Utils.replyText(client, replyToken, 'Unknown command, please type ' + Command.Help + ' or ' + Command.HelpAlt + ' for more info');
   }
 }
