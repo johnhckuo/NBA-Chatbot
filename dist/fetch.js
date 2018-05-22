@@ -35,6 +35,10 @@ var Fetch = function () {
     console.log("------- initialized -------");
   }
 
+  /* ------------
+       Fetch
+  --------------*/
+
   _createClass(Fetch, [{
     key: 'SYSTEM_FetchPlayerData',
     value: function SYSTEM_FetchPlayerData() {
@@ -44,7 +48,7 @@ var Fetch = function () {
         _this.players = response.data.league.standard;
         console.log("------- player data initialized -------");
       }).catch(function (error) {
-        throw new SystemException("FETCH_ERROR", error, replyToken, _this.client);
+        throw new SystemException("INITIAL_ERROR", error, null, _this.client);
       });
     }
   }, {
@@ -94,7 +98,7 @@ var Fetch = function () {
             var key = keys[i];
             if (typeof Abbrev[key] != "undefined") {
               var playerId = response.data.league.standard[key][0].personId;
-              leaders += Abbrev[key] + ' : ' + _this3.getPlayerData("personId", playerId).firstName + ' ' + _this3.getPlayerData("personId", playerId).lastName + '\n';
+              leaders += Abbrev[key] + ' : ' + _this3.searchPlayerData("personId", playerId).firstName + ' ' + _this3.searchPlayerData("personId", playerId).lastName + '\n';
             }
           }
           return Utils.replyText(_this3.client, replyToken, leaders);
@@ -124,7 +128,7 @@ var Fetch = function () {
           var players = response.data.league.standard.players;
 
           var playersInfo = players.map(function (player) {
-            return _this3.getPlayerData("personId", player.personId);
+            return _this3.searchPlayerData("personId", player.personId);
           });
 
           var columns = [];
@@ -176,76 +180,39 @@ var Fetch = function () {
       });
     }
   }, {
-    key: 'getPlayerData',
-    value: function getPlayerData(indexType, searchIndex) {
-      if (this.players != null) {
-        for (var i = 0; i < this.players.length; i++) {
-          if (this.players[i][indexType].toLowerCase() === searchIndex.toLowerCase()) {
-            return this.players[i];
-          }
-        }
-      } else {
-        throw new SystemException("PLAYER_DATA_NOT_INIT", error, replyToken, this.client);
-      }
-    }
-  }, {
-    key: 'getTeam',
-    value: function getTeam(searchIndex, keyword, replyToken) {
-      var urlName = null;
-      if (searchIndex == "name") {
-        var keys = Object.keys(teams.league.standard);
-        for (var i = 0; i < keys.length; i++) {
-          var key = keys[i];
-          if (keyword.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()) {
-            urlName = teams.league.standard[key].urlName;
-            break;
-          }
-        }
-      } else if (searchIndex == "id") {
-        urlName = teams.league.standard[keyword].urlName;
-      } else {
-        throw new SystemException("TEAM_NOT_FOUND", {}, replyToken, this.client);
-      }
+    key: 'fetchGameByDate',
+    value: function fetchGameByDate(date, replyToken) {
+      var _this5 = this;
 
-      if (urlName == null) {
-        throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
-      }
-
-      return this.client.replyMessage(replyToken, {
-        type: 'template',
-        altText: 'team query',
-        template: {
-          type: 'buttons',
-          text: 'What do you want to know?',
-          actions: [{
-            type: 'postback',
-            label: 'Team Leaders',
-            data: 'type=TEAM_LEADERS&urlCode=' + urlName
-          }, {
-            type: 'postback',
-            label: 'Team Schedule',
-            data: 'type=TEAM_SCHEDULE&urlCode=' + urlName
-          }, {
-            type: 'postback',
-            label: 'Subscribe',
-            data: 'type=subscribe&urlCode=' + urlName
-          }]
-        }
-      }).catch(function (e) {
-        console.log(e.originalError.response.data.details);
+      date = date.split("-").join("");
+      return axios.get(API.NBARoot + '/' + date + '/scoreboard.json').then(function (response) {
+        return _this5.replyGameByDate(response.data.games, date, replyToken);
+      }).catch(function (error) {
+        throw new SystemException("FETCH_ERROR", error, replyToken, _this5.client);
       });
     }
+
+    /* ------------
+         Reply
+    --------------*/
+
   }, {
-    key: 'queryPlayer',
-    value: function queryPlayer(playerName, replyToken) {
-      var player = this.getPlayerData("lastName", playerName);
+    key: 'replyPlayerInfo',
+    value: function replyPlayerInfo(playerName, replyToken) {
+      var player = this.searchPlayerData("lastName", playerName);
       if (player == null) {
         throw new UserException("PLAYER_NOT_FOUND", replyToken, this.client);
       }
       player.teams = player.teams.map(function (team) {
-        return { team: teams.league.standard[team.teamId].nickname, seasonStart: team.seasonStart, seasonEnd: team.seasonEnd };
+        return {
+          team: teams.league.standard[team.teamId].nickname,
+          seasonStart: team.seasonStart,
+          seasonEnd: team.seasonEnd
+        };
       });
-      player.draft = Object.assign({}, player.draft, { team: teams.league.standard[player.draft.teamId].nickname });
+      player.draft = Object.assign({}, player.draft, {
+        team: teams.league.standard[player.draft.teamId].nickname
+      });
       delete player.draft.teamId;
       this.client.replyMessage(replyToken, {
         type: 'template',
@@ -264,8 +231,8 @@ var Fetch = function () {
       });
     }
   }, {
-    key: 'getTeamList',
-    value: function getTeamList(replyToken) {
+    key: 'replyTeamList',
+    value: function replyTeamList(replyToken) {
       var i = 0;
       var columns = [];
       var actions = [];
@@ -309,33 +276,6 @@ var Fetch = function () {
       });
     }
   }, {
-    key: 'UTCtoLocaleTime',
-    value: function UTCtoLocaleTime(startTimeUTC) {
-      var date = new Date(startTimeUTC);
-      var hours = date.getHours();
-      var minutes = date.getMinutes();
-      var ampm = hours >= 12 ? 'pm' : 'am';
-      hours = hours % 12;
-      hours = hours ? hours : 12; // the hour '0' should be '12'
-      minutes = minutes < 10 ? '0' + minutes : minutes;
-      var strTime = hours + ':' + minutes + ' ' + ampm;
-      return date.getMonth() + 1 + "/" + date.getDate() + "/" + date.getFullYear() + "  " + strTime;
-    }
-  }, {
-    key: 'fetchGameByDate',
-    value: function fetchGameByDate(date, replyToken) {
-      var _this5 = this;
-
-      date = date.split("-").join("");
-      return axios.get(API.NBARoot + '/' + date + '/scoreboard.json', {
-        params: {}
-      }).then(function (response) {
-        return _this5.replyGameByDate(response.data.games, date, replyToken);
-      }).catch(function (error) {
-        throw new SystemException("FETCH_ERROR", error, replyToken, _this5.client);
-      });
-    }
-  }, {
     key: 'replyGameLeaders',
     value: function replyGameLeaders(leaders, token) {
       var _this6 = this;
@@ -348,11 +288,15 @@ var Fetch = function () {
           "columns": Object.keys(leaders).map(function (key) {
             var title = _this6.ComparableStats[key] + ' leader';
             var actions = leaders[key].map(function (leader) {
-              var playerData = _this6.getPlayerData("personId", leader.personId);
+              var playerData = _this6.searchPlayerData("personId", leader.personId);
               var playerName = playerData.firstName + " " + playerData.lastName;
+              var labelText = playerName + ' ' + leader[key];
+              if (labelText.length > API.LabelCharLength) {
+                labelText = playerData.lastName + ' ' + leader[key];
+              }
               return {
                 type: "postback",
-                label: playerName + ' ' + leader[key],
+                label: labelText,
                 data: 'type=playerDetail&playerId=' + leader.personId + '&queryType=' + key
               };
             });
@@ -433,7 +377,11 @@ var Fetch = function () {
           "type": "postback",
           "label": teams.league.standard[game.vTeam.teamId].nickname + ' Stats',
           "data": 'type=playersStats&teamId=' + game.vTeam.teamId + '&gameId=' + game.gameId + '&date=' + date
-        }] : [];
+        }] : [{
+          "type": "postback",
+          "label": "Stay Tuned !",
+          "data": 'type=display'
+        }];
         return {
           //"thumbnailImageUrl": "https://example.com/bot/images/item1.jpg",
           "imageBackgroundColor": "#FFFFFF",
@@ -456,14 +404,101 @@ var Fetch = function () {
       });
     }
   }, {
+    key: 'replyTeamInfo',
+    value: function replyTeamInfo(searchIndex, keyword, replyToken) {
+      var urlName = null;
+      if (searchIndex == "name") {
+        var keys = Object.keys(teams.league.standard);
+        for (var i = 0; i < keys.length; i++) {
+          var key = keys[i];
+          if (keyword.toLowerCase() === teams.league.standard[key].fullName.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].tricode.toLowerCase() || keyword.toLowerCase() === teams.league.standard[key].nickname.toLowerCase()) {
+            urlName = teams.league.standard[key].urlName;
+            break;
+          }
+        }
+      } else if (searchIndex == "id") {
+        urlName = teams.league.standard[keyword].urlName;
+      } else {
+        throw new SystemException("TEAM_NOT_FOUND", {}, replyToken, this.client);
+      }
+
+      if (urlName == null) {
+        throw new UserException("TEAM_NOT_FOUND", replyToken, this.client);
+      }
+
+      return this.client.replyMessage(replyToken, {
+        type: 'template',
+        altText: 'team query',
+        template: {
+          type: 'buttons',
+          text: 'What do you want to know?',
+          actions: [{
+            type: 'postback',
+            label: 'Team Leaders',
+            data: 'type=TEAM_LEADERS&urlCode=' + urlName
+          }, {
+            type: 'postback',
+            label: 'Team Schedule',
+            data: 'type=TEAM_SCHEDULE&urlCode=' + urlName
+          }, {
+            type: 'postback',
+            label: 'Subscribe',
+            data: 'type=subscribe&urlCode=' + urlName
+          }]
+        }
+      }).catch(function (e) {
+        console.log(e.originalError.response.data.details);
+      });
+    }
+
+    /* ---------------
+     utility function
+    -----------------*/
+
+  }, {
+    key: 'searchPlayerData',
+    value: function searchPlayerData(indexType, searchIndex) {
+      if (this.players != null) {
+        for (var i = 0; i < this.players.length; i++) {
+          if (this.players[i][indexType].toLowerCase() === searchIndex.toLowerCase()) {
+            return this.players[i];
+          }
+        }
+      } else {
+        throw new SystemException("PLAYER_DATA_NOT_INIT", error, replyToken, this.client);
+      }
+    }
+  }, {
+    key: 'UTCtoLocaleTime',
+    value: function UTCtoLocaleTime(startTimeUTC) {
+      var date = new Date(startTimeUTC);
+      var hours = date.getHours();
+      var minutes = date.getMinutes();
+      var ampm = hours >= 12 ? 'pm' : 'am';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      minutes = minutes < 10 ? '0' + minutes : minutes;
+      var strTime = hours + ':' + minutes + ' ' + ampm;
+      return date.getMonth() + 1 + "/" + date.getDate() + "/" + date.getFullYear() + "  " + strTime;
+    }
+
+    /* ---------------
+      user preferences
+    -----------------*/
+
+  }, {
     key: 'updateUserPreference',
     value: function updateUserPreference(teamUrlName, userId, replyToken) {
+      var _this8 = this;
+
       axios.post(API.LineRoot + '/user/' + userId + '/richmenu/' + API.RichMenu[teamUrlName], {}, {
-        headers: { Authorization: 'Bearer ' + process.env.CHANNEL_ACCESS_TOKEN }
+        headers: {
+          Authorization: 'Bearer ' + process.env.CHANNEL_ACCESS_TOKEN
+        }
       }).then(function (response) {
-        Utils.replyText(this.client, replyToken, 'You\'ve successfully subscribed team ' + teamUrlName);
+        Utils.replyText(_this8.client, replyToken, 'You\'ve successfully subscribed team ' + teamUrlName);
       }).catch(function (error) {
-        throw new SystemException("SUBSCRIBE_ERROR", error, replyToken, this.client);
+        throw new SystemException("SUBSCRIBE_ERROR", error, replyToken, _this8.client);
       });
     }
   }]);
@@ -487,9 +522,13 @@ function SystemException(type, error, token, client) {
     case "SUBSCRIBE_ERROR":
       console.log("Subscribe Error");
       return;
+    case "INITIAL_ERROR":
+      console.log("Initialize Error");
     default:
       console.log("system error: ", error);
-      Utils.replyText(client, token, "Oops! We've encountered some bugs. Please try again :(");
+      if (token != null) {
+        Utils.replyText(client, token, "Oops! We've encountered some bugs. Please try again :(");
+      }
   }
 }
 
