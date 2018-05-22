@@ -7,7 +7,9 @@ const Utils = {
         type: 'text',
         text
       }))
-    );
+    ).catch((e)=>{
+      console.log(e.originalError.response.data.message)
+    });
   },
   toObject : function(data){
     var response = [];

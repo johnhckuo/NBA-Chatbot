@@ -112,7 +112,7 @@ class Fetch {
             })
           }
 
-          return Utils.replyText(
+          Utils.replyText(
             this.client,
             replyToken,
             content
@@ -145,7 +145,7 @@ class Fetch {
             });
 
           }
-          return this.client.replyMessage(
+          this.client.replyMessage(
             replyToken, {
               "type": "template",
               "altText": "Player List",
@@ -260,7 +260,7 @@ class Fetch {
     this.client.replyMessage(
       replyToken, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Team List",
         "template": {
           "type": "carousel",
           "columns": columns,
@@ -278,7 +278,7 @@ class Fetch {
     return this.client.replyMessage(
       token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Game Leaders",
         "template": {
           "type": "carousel",
           "columns": Object.keys(leaders).map((key) => {
@@ -343,7 +343,7 @@ class Fetch {
     this.client.replyMessage(
       token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Player Stats",
         "template": {
           "type": "carousel",
           "columns": columns,
@@ -390,7 +390,7 @@ class Fetch {
     return this.client.replyMessage(
       token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Games List",
         "template": {
           "type": "carousel",
           "columns": columns,

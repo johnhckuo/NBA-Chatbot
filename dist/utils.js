@@ -8,7 +8,9 @@ var Utils = {
         type: 'text',
         text: text
       };
-    }));
+    })).catch(function (e) {
+      console.log(e.originalError.response.data.message);
+    });
   },
   toObject: function toObject(data) {
     var response = [];

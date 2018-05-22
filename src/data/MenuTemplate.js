@@ -9,7 +9,7 @@ module.exports.getRichMenuTemplate = (teamUrlCode)=>{
 		    "width":width,
 		    "height":height
 		},
-		"selected":true,
+		"selected":false,
 		"name":"Main Menu",
 		"chatBarText":"Main Menu",
 		"areas":[

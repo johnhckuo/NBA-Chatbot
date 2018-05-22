@@ -123,7 +123,7 @@ var Fetch = function () {
             });
           }
 
-          return Utils.replyText(_this3.client, replyToken, content);
+          Utils.replyText(_this3.client, replyToken, content);
         } else if (type == "roster") {
           var players = response.data.league.standard.players;
 
@@ -151,7 +151,7 @@ var Fetch = function () {
               "data": 'type=queryPlayer&playerName=' + playersInfo[i].lastName
             });
           }
-          return _this3.client.replyMessage(replyToken, {
+          _this3.client.replyMessage(replyToken, {
             "type": "template",
             "altText": "Player List",
             "template": {
@@ -264,7 +264,7 @@ var Fetch = function () {
       }
       this.client.replyMessage(replyToken, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Team List",
         "template": {
           "type": "carousel",
           "columns": columns,
@@ -282,7 +282,7 @@ var Fetch = function () {
 
       return this.client.replyMessage(token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Game Leaders",
         "template": {
           "type": "carousel",
           "columns": Object.keys(leaders).map(function (key) {
@@ -346,7 +346,7 @@ var Fetch = function () {
       });
       this.client.replyMessage(token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Player Stats",
         "template": {
           "type": "carousel",
           "columns": columns,
@@ -392,7 +392,7 @@ var Fetch = function () {
       });
       return this.client.replyMessage(token, {
         "type": "template",
-        "altText": "Function Menu",
+        "altText": "Games List",
         "template": {
           "type": "carousel",
           "columns": columns,
