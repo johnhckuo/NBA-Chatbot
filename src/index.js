@@ -53,7 +53,8 @@ function handleEvent(event) {
       const message = event.message;
       switch (message.type) {
         case 'text':
-          return handleText(message, event.replyToken, event.source);
+          handleText(message, event.replyToken, event.source);
+          break;
         default:
           throw new Error(`Unknown message: ${JSON.stringify(message)}`);
       }
@@ -63,52 +64,62 @@ function handleEvent(event) {
       switch (data.type) {
         case 'DATE':
           return fetch.fetchGameByDate(event.postback.params.date, event.replyToken);
+          break;
         case 'TEAM':
-          return fetch.getTeam("id", data.teamId, event.replyToken);
+          fetch.replyTeamInfo("id", data.teamId, event.replyToken);
+          break;
         case 'TEAM_LEADERS':
-          return fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
+          fetch.fetchTeamInfo("leaders", data.urlCode, event.replyToken);
+          break;
         case 'TEAM_SCHEDULE':
-          return fetch.fetchTeamInfo("schedule", data.urlCode, event.replyToken);
+          fetch.fetchTeamInfo("schedule", data.urlCode, event.replyToken);
+          break;
         case 'TEAM_ROSTER':
-          return fetch.fetchTeamInfo("roster", data.urlCode, event.replyToken);
+          fetch.fetchTeamInfo("roster", data.urlCode, event.replyToken);
+          break;
         case 'RECENT_STATS':
-          return fetch.fetchPlayerRecentStats(data.playerId, event.replyToken);
+          fetch.fetchPlayerRecentStats(data.playerId, event.replyToken);
+          break;
         case 'playersStats':
-          return fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
+          fetch.fetchPlayersStatsByGameId(data.teamId, data.gameId, data.date, event.replyToken)
+          break;
         case 'queryPlayer':
-          return fetch.queryPlayer(data.playerName, event.replyToken);
+          fetch.replyPlayerInfo(data.playerName, event.replyToken);
+          break;
         case 'TEAM_LIST':
-          return fetch.getTeamList(event.replyToken);
+          fetch.replyTeamList(event.replyToken);
+          break;
         case 'help':
-          return Utils.replyText(
+          Utils.replyText(
             client,
             event.replyToken, [
-              `${Command.Help} menu -> Menu`,
               `${Command.Help} profile -> Profile`,
               `${Command.Team} Name -> Team Info`,
               `${Command.Player} Name -> Player Info`
             ]
           )
-        case 'subscribe':{
-          return fetch.updateUserPreference(data.urlCode, event.source.userId, event.replyToken);
-        }
+          break;
+        case 'subscribe':
+          fetch.updateUserPreference(data.urlCode, event.source.userId, event.replyToken);
+          break;
         case 'display':
           console.log("display only")
+          break;
         default:
           throw new Error(`Unknown data: ${JSON.stringify(data)}`);
       }
     case 'follow':
-      return Utils.replyText(client, event.replyToken, 'Got followed event');
-
+      Utils.replyText(client, event.replyToken, 'Got followed event');
+      break;
     case 'unfollow':
-      return console.log(`Unfollowed this bot: ${JSON.stringify(event)}`);
-
+      console.log(`Unfollowed this bot: ${JSON.stringify(event)}`);
+      break;
     case 'join':
-      return Utils.replyText(client, event.replyToken, `Joined ${event.source.type}`);
-
+      Utils.replyText(client, event.replyToken, `Joined ${event.source.type}`);
+      break;
     case 'leave':
-      return console.log(`Left: ${JSON.stringify(event)}`);
-
+      console.log(`Left: ${JSON.stringify(event)}`);
+      break;
     default:
       throw new Error(`Unknown event: ${JSON.stringify(event)}`);
   }
@@ -117,58 +128,49 @@ function handleEvent(event) {
 function handleText(message, replyToken, source) {
   const requestType = message.text.split(" ")[0];
   const requestContent = message.text.split(" ")[1];
+
   if (requestType === Command.Help || requestType === Command.HelpAlt) {
     switch (requestContent) {
       case 'profile':
-        axios.post(`${API.LineRoot}/user/${source.userId}/richmenu/${API.RichMenu['celtics']}`, {}, {
-          headers:{ Authorization: `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`}
-        })
-        .then(function (response) {
-          console.log(response);
-        })
-        .catch(function (error) {
-          console.log(error);
-        });
         if (source.userId) {
-          return client.getProfile(source.userId)
-            .then((profile) => Utils.replyText(
-              client,
-              replyToken, [
-                `Display name: ${profile.displayName}`,
-                `Status message: ${profile.statusMessage}`,
-              ]
-            ));
+
+          return axios.get(`${API.LineRoot}/user/${source.userId}/richmenu`, {
+              headers: {
+                "Authorization": `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
+              }
+            })
+            .then((response) => {
+              var richMenuId = response.data.richMenuId;
+              var keys = Object.keys(API.RichMenu);
+              var subscribedTeam = "None";
+              for (var i = 0; i < keys.length; i++) {
+                if (API.RichMenu[keys[i]] == richMenuId) {
+                  subscribedTeam = keys[i];
+                  break;
+                }
+              }
+
+              return client.getProfile(source.userId)
+                .then((profile) => Utils.replyText(
+                  client,
+                  replyToken, [
+                    `Username: ${profile.displayName}`,
+                    `Subscribed Team: ${subscribedTeam}`
+                  ]
+                ));
+            })
+            .catch((error) => {
+              console.log(error.originalError.response.data);
+            });
+
         } else {
           return Utils.replyText(client, replyToken, 'Bot can\'t use profile API without user ID');
         };
-      case 'menu':
-        return client.replyMessage(
-          replyToken, {
-            type: 'template',
-            altText: 'Datetime pickers alt text',
-            template: {
-              type: 'buttons',
-              text: 'Welcome to NBA Chatbot',
-              actions: [{
-                  type: 'datetimepicker',
-                  label: 'Game by date',
-                  data: 'type=DATE',
-                  mode: 'date'
-                },
-                {
-                  type: 'postback',
-                  label: 'Search Team',
-                  data: 'type=TEAM'
-                },
-              ],
-            },
-          }
-        );
+        break;
       default:
         return Utils.replyText(
           client,
           replyToken, [
-            `${Command.Help} menu -> Menu`,
             `${Command.Help} profile -> Profile`,
             `${Command.Team} Name -> Team Info`,
             `${Command.Player} Name -> Player Info`
@@ -177,9 +179,9 @@ function handleText(message, replyToken, source) {
     }
 
   } else if (requestType === Command.Team || requestType === Command.TeamAlt) {
-    return fetch.getTeam("name", requestContent, replyToken);
+    return fetch.replyTeamInfo("name", requestContent, replyToken);
   } else if (requestType === Command.Player || requestType === Command.PlayerAlt) {
-    return fetch.queryPlayer(requestContent, replyToken);
+    return fetch.replyPlayerInfo(requestContent, replyToken);
   } else {
     Utils.replyText(client, replyToken, `Unknown command, please type ${Command.Help} or ${Command.HelpAlt} for more info`)
   }
