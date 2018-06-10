@@ -5,11 +5,14 @@ A line chatbot built to report NBA live stats
 
 ## Features
 
+### Teams
 * Team Subscription
-* Team Leaders Lookup
 * Team Roster Lookup
 * Playoffs Schedule
 * Game Result Lookup
+### Players
+* Team Leaders Lookup
+* Player Stats Lookup
 
 ## Installation and Building
 
