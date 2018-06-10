@@ -3,6 +3,14 @@ A line chatbot built to report NBA live stats
 
 <img src="https://github.com/johnhckuo/NBA-Chatbot/raw/master/qrcode.png">
 
+## Features
+
+* Team Subscription
+* Team Leaders Lookup
+* Team Roster Lookup
+* Playoffs Schedule
+* Game Result Lookup
+
 ## Installation and Building
 
 ```bash
